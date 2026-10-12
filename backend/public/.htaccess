@@ -1,0 +1,5 @@
+# Envía todas las peticiones a index.php (Apache / Dreamhost)
+Options -Indexes
+RewriteEngine On
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteRule ^ index.php [QSA,L]
