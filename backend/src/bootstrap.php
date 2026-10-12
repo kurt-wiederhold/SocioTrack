@@ -10,7 +10,8 @@ spl_autoload_register(function (string $class): void {
     }
 });
 
-$configFile = __DIR__ . '/../config/config.php';
+// AD_CONFIG permite usar otra configuración (lo usan las pruebas para no tocar config.php).
+$configFile = getenv('AD_CONFIG') ?: __DIR__ . '/../config/config.php';
 if (!is_file($configFile)) {
     http_response_code(500);
     header('Content-Type: application/json; charset=utf-8');

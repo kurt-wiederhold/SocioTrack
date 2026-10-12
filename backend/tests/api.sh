@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
-# Prueba de punta a punta de la API contra una base SQLite temporal.
-# Uso (desde backend/): bash tests/api.sh
+# Prueba de punta a punta de la API contra una base desechable. No toca config/config.php.
+# Uso (desde backend/):
+#   bash tests/api.sh                         -> SQLite temporal
+#   TEST_MYSQL_DB=africadream_test TEST_MYSQL_USER=u TEST_MYSQL_PASS=p bash tests/api.sh
+#                                             -> MySQL/MariaDB (la base se BORRA y se recrea)
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -10,21 +13,34 @@ BASE="http://127.0.0.1:$PORT/api"
 JAR="$TMP/cookies"
 fallos=0
 
-# config.php temporal que apunta a una base SQLite desechable
-cp config/config.php "$TMP/config.backup" 2>/dev/null || true
-cat > config/config.php <<EOF
+export AD_CONFIG="$TMP/config.php"
+if [ -n "${TEST_MYSQL_DB:-}" ]; then
+  echo "Motor: MySQL/MariaDB ($TEST_MYSQL_DB)"
+  cat > "$AD_CONFIG" <<EOF
+<?php
+return ['db' => ['dsn' => 'mysql:host=127.0.0.1;dbname=$TEST_MYSQL_DB;charset=utf8mb4', 'user' => '$TEST_MYSQL_USER', 'pass' => '$TEST_MYSQL_PASS'],
+        'app' => ['debug' => true, 'session_minutes' => 120, 'max_import_rows' => 5000]];
+EOF
+  php -r '
+    require "src/bootstrap.php";
+    $pdo = App\Db::pdo();
+    $pdo->exec("SET FOREIGN_KEY_CHECKS=0; DROP TABLE IF EXISTS socios, login_intentos, usuarios; SET FOREIGN_KEY_CHECKS=1;");
+    $pdo->exec(file_get_contents("database/schema.mysql.sql"));'
+else
+  echo "Motor: SQLite"
+  cat > "$AD_CONFIG" <<EOF
 <?php
 return ['db' => ['dsn' => 'sqlite:$TMP/test.sqlite', 'user' => null, 'pass' => null],
         'app' => ['debug' => true, 'session_minutes' => 120, 'max_import_rows' => 5000]];
 EOF
+  php scripts/init_sqlite.php >/dev/null
+fi
 restore() {
   kill "$SERVER" 2>/dev/null || true
-  if [ -f "$TMP/config.backup" ]; then cp "$TMP/config.backup" config/config.php; else rm -f config/config.php; fi
   rm -rf "$TMP"
 }
 trap restore EXIT
 
-php scripts/init_sqlite.php >/dev/null
 AD_PASSWORD='clave-de-prueba-123' php scripts/crear_usuario.php admin@test.cl "Admin" >/dev/null
 php -S 127.0.0.1:$PORT -t public public/index.php >/dev/null 2>&1 &
 SERVER=$!

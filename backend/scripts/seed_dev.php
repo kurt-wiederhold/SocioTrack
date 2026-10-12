@@ -2,8 +2,10 @@
 declare(strict_types=1);
 
 // Datos FICTICIOS para desarrollo local. No usar en producción.
-// Crea el usuario demo (ver README) y ~60 socios de ejemplo.
+// Crea el usuario demo (correo y contraseña abajo) y ~60 socios de ejemplo.
 // Uso: php scripts/seed_dev.php
+// - SQLite: crea las tablas solo.
+// - MySQL/MariaDB: cargar antes database/schema.mysql.sql.
 
 if (PHP_SAPI !== 'cli') {
     exit("Solo por consola.\n");
@@ -15,14 +17,17 @@ use App\Rut;
 use App\SocioRepository;
 use App\SocioValidator;
 
-if (!Db::isSqlite()) {
-    exit("Por seguridad, este script solo corre contra la base SQLite de desarrollo.\n");
+// Protección: nunca correr contra producción (allí 'debug' debe ser false).
+if (!App\Config::get('app.debug')) {
+    exit("Por seguridad, este script solo corre con 'debug' => true (desarrollo).\n");
 }
 
 const DEMO_EMAIL = 'demo@africadream.test';
 const DEMO_PASSWORD = 'demo-africadream-2026';
 
-Db::pdo()->exec(file_get_contents(__DIR__ . '/../database/schema.sqlite.sql'));
+if (Db::isSqlite()) {
+    Db::pdo()->exec(file_get_contents(__DIR__ . '/../database/schema.sqlite.sql'));
+}
 if (!Db::one('SELECT id FROM usuarios WHERE email = ?', [DEMO_EMAIL])) {
     Db::run('INSERT INTO usuarios (email, nombre, password_hash, activo, creado_en) VALUES (?, ?, ?, 1, ?)', [
         DEMO_EMAIL, 'Usuario Demo', password_hash(DEMO_PASSWORD, PASSWORD_DEFAULT), date('Y-m-d H:i:s'),
