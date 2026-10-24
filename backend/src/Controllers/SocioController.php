@@ -7,6 +7,7 @@ use App\Auth;
 use App\Config;
 use App\Db;
 use App\Http;
+use App\Proveedores;
 use App\HttpError;
 use App\Rut;
 use App\SocioRepository;
@@ -18,16 +19,30 @@ final class SocioController
     public static function index(): never
     {
         $filtros = array_intersect_key($_GET, array_flip([
-            'buscar', 'estado', 'medio_pago', 'proveedor_estado', 'monto_min', 'monto_max', 'orden', 'dir', 'pagina', 'por_pagina',
+            'buscar', 'estado', 'medio_pago', 'categoria_id', 'proveedor_id', 'proveedor_estado', 'orden', 'dir', 'pagina', 'por_pagina',
         ]));
         $filtros = array_map(fn ($v) => is_string($v) ? $v : '', $filtros);
 
         Http::json(SocioRepository::search($filtros) + ['resumen' => SocioRepository::resumen()]);
     }
 
-    public static function proveedores(): never
+    /**
+     * Marca como revisada la alerta "pasó 100% a la Fundación".
+     * Body: { ids: [1, 2] } o { todos: true }.
+     */
+    public static function revisarAlertas(): never
     {
-        Http::json(['datos' => SocioRepository::proveedores()]);
+        $b = Http::body();
+        if (($b['todos'] ?? false) === true) {
+            $n = SocioRepository::marcarRevisados(null);
+        } else {
+            $ids = $b['ids'] ?? null;
+            if (!is_array($ids) || !$ids || count($ids) > 5000 || array_filter($ids, fn ($i) => !is_int($i) || $i < 1)) {
+                throw new HttpError(422, 'Indica los socios a marcar.');
+            }
+            $n = SocioRepository::marcarRevisados(array_values(array_unique($ids)));
+        }
+        Http::json(['marcados' => $n]);
     }
 
     public static function show(int $id): never
@@ -41,6 +56,7 @@ final class SocioController
         if (!$errores && SocioRepository::findByRut($d['rut'])) {
             $errores['rut'] = 'Ya existe un socio con este RUT.';
         }
+        self::resolverProveedor($d, $errores);
         self::failIf($errores);
 
         try {
@@ -61,6 +77,7 @@ final class SocioController
                 $errores['rut'] = 'Ya existe otro socio con este RUT.';
             }
         }
+        self::resolverProveedor($d, $errores);
         self::failIf($errores);
 
         try {
@@ -113,6 +130,12 @@ final class SocioController
             }
         }
 
+        // Proveedores existentes por nombre (en minúsculas) para resolver la columna "Proveedor".
+        $provPorNombre = [];
+        foreach (Db::all('SELECT id, nombre FROM proveedores') as $p) {
+            $provPorNombre[mb_strtolower($p['nombre'])] = (int) $p['id'];
+        }
+
         $resultado = [];
         $vistos = [];
         $plan = [];
@@ -133,8 +156,19 @@ final class SocioController
                 // Solo se reemplazan las columnas que vienen con valor en la planilla.
                 $conValor = array_filter($fila, fn ($v) => $v !== null && $v !== '');
                 $entrada = array_merge($existe, $conValor);
+                if (isset($conValor['proveedor'])) {
+                    unset($entrada['proveedor_id']); // la planilla trae otro proveedor por nombre
+                }
             }
             [$d, $errores] = SocioValidator::validate($entrada);
+
+            $proveedorNuevo = null;
+            if ($d['proveedor_nombre'] !== null && !isset($errores['proveedor'])) {
+                $d['proveedor_id'] = $provPorNombre[mb_strtolower($d['proveedor_nombre'])] ?? null;
+                if ($d['proveedor_id'] === null) {
+                    $proveedorNuevo = $d['proveedor_nombre'];
+                }
+            }
 
             if ($rut && isset($vistos[$rut])) {
                 $errores['rut'] = "RUT repetido en la planilla (fila {$vistos[$rut]}).";
@@ -160,10 +194,12 @@ final class SocioController
             }
             if ($accion === 'omitir') {
                 $item['mensaje'] = $sinCambios ? 'Ya existe, sin cambios.' : 'Ya existe en la base de datos.';
+            } elseif ($proveedorNuevo !== null && $accion !== 'error') {
+                $item['mensaje'] = "Se creará el proveedor “{$proveedorNuevo}”.";
             }
             $resultado[] = $item;
             if ($accion === 'crear' || $accion === 'actualizar') {
-                $plan[] = [$accion, $d, $existe['id'] ?? null];
+                $plan[] = [$accion, $d, $existe['id'] ?? null, $proveedorNuevo];
             }
         }
 
@@ -171,7 +207,12 @@ final class SocioController
             $pdo = Db::pdo();
             $pdo->beginTransaction();
             try {
-                foreach ($plan as [$accion, $d, $id]) {
+                $creados = [];
+                foreach ($plan as [$accion, $d, $id, $proveedorNuevo]) {
+                    if ($proveedorNuevo !== null) {
+                        $clave = mb_strtolower($proveedorNuevo);
+                        $d['proveedor_id'] = $creados[$clave] ??= Proveedores::idPorNombre($proveedorNuevo);
+                    }
                     $accion === 'crear'
                         ? SocioRepository::create($d, Auth::userId())
                         : SocioRepository::update((int) $id, $d, Auth::userId());
@@ -192,6 +233,21 @@ final class SocioController
             $conteo[$r['accion']]++;
         }
         Http::json(['simulado' => $simular, 'conteo' => $conteo, 'filas' => $resultado]);
+    }
+
+    /**
+     * Formulario/API: el proveedor_id debe existir; si viene un nombre, se usa o se crea ese proveedor.
+     */
+    private static function resolverProveedor(array &$d, array &$errores): void
+    {
+        if ($errores) {
+            return;
+        }
+        if ($d['proveedor_id'] !== null && !Proveedores::find($d['proveedor_id'])) {
+            $errores['proveedor_id'] = 'El proveedor no existe.';
+        } elseif ($d['proveedor_nombre'] !== null) {
+            $d['proveedor_id'] = Proveedores::idPorNombre($d['proveedor_nombre']);
+        }
     }
 
     /** ¿Los datos validados son iguales a lo que ya está guardado? */

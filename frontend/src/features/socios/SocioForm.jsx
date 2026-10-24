@@ -2,12 +2,13 @@ import { useEffect, useState } from 'react'
 import * as api from '../../lib/api'
 import { formatCLP, formatFecha, formatMes, hoyISO, ultimoMesProveedor } from '../../lib/format'
 import { formatRut, normalizeRut } from '../../lib/rut'
-import { Button, Field, Input, Modal, Select, Textarea } from '../../components/ui'
+import { Button, Field, Icon, Input, Modal, Select, Textarea } from '../../components/ui'
+import { ProveedorForm } from '../proveedores/ProveedoresPage'
 import { BANCOS, ESTADOS, MEDIOS } from './constants'
 
 const VACIO = {
   rut: '', nombre: '', email: '', telefono: '', medio_pago: 'PAC', banco: '', monto: '', estado: 'activo',
-  fecha_alta: '', fecha_baja: '', proveedor: '', proveedor_monto: '', proveedor_cuotas: '', proveedor_inicio: '', observaciones: '',
+  fecha_alta: '', fecha_baja: '', proveedor_id: '', proveedor_monto: '', proveedor_cuotas: '', proveedor_inicio: '', observaciones: '',
 }
 
 // Lleva el foco (y el scroll) al primer campo con error, tras el re-render.
@@ -21,7 +22,7 @@ const enfocarError = () =>
 function desdeSocio(s) {
   if (!s) return { ...VACIO, fecha_alta: hoyISO() }
   const f = { ...VACIO }
-  for (const k of Object.keys(VACIO)) f[k] = s[k] ?? ''
+  for (const k of Object.keys(VACIO)) f[k] = s[k] == null ? '' : String(s[k])
   f.rut = formatRut(s.rut)
   return f
 }
@@ -34,7 +35,7 @@ function validarLocal(f, conProveedor) {
   if (!/^\d+$/.test(String(f.monto)) || Number(f.monto) < 1) e.monto = 'Ingresa un monto en pesos, sin puntos.'
   if (f.email && !/^\S+@\S+\.\S+$/.test(f.email)) e.email = 'Correo inválido.'
   if (conProveedor) {
-    if (!f.proveedor.trim()) e.proveedor = 'Indica el proveedor.'
+    if (!f.proveedor_id) e.proveedor_id = 'Elige el proveedor.'
     if (f.proveedor_monto === '' || Number(f.proveedor_monto) < 0) e.proveedor_monto = 'Indica el pago mensual.'
     const meses = Number(f.proveedor_cuotas)
     if (!Number.isInteger(meses) || meses < 1 || meses > 120) e.proveedor_cuotas = 'Cantidad de meses (1 a 120).'
@@ -49,14 +50,15 @@ export default function SocioForm({ socio, open, onClose, onSaved, onDelete }) {
   const [errorGeneral, setErrorGeneral] = useState('')
   const [guardando, setGuardando] = useState(false)
   const [proveedores, setProveedores] = useState([])
+  const [creandoProveedor, setCreandoProveedor] = useState(false)
 
   useEffect(() => {
     if (!open) return
     setF(desdeSocio(socio))
-    setConProveedor(!!socio?.proveedor)
+    setConProveedor(!!socio?.proveedor_id)
     setErrores({})
     setErrorGeneral('')
-    api.socios.proveedores().then((r) => setProveedores(r.datos), () => {})
+    api.proveedores.list().then((r) => setProveedores(r.datos), () => {})
   }, [open, socio])
 
   const set = (k) => (e) => {
@@ -80,7 +82,7 @@ export default function SocioForm({ socio, open, onClose, onSaved, onDelete }) {
 
     const payload = { ...f }
     if (!conProveedor) {
-      for (const k of ['proveedor', 'proveedor_monto', 'proveedor_cuotas', 'proveedor_inicio']) payload[k] = ''
+      for (const k of ['proveedor_id', 'proveedor_monto', 'proveedor_cuotas', 'proveedor_inicio']) payload[k] = ''
     }
     if (payload.medio_pago !== 'PAC') payload.banco = ''
     if (payload.estado !== 'baja') payload.fecha_baja = ''
@@ -102,6 +104,7 @@ export default function SocioForm({ socio, open, onClose, onSaved, onDelete }) {
   const totalProveedor = Number(f.proveedor_monto) * Number(f.proveedor_cuotas)
 
   return (
+    <>
     <Modal
       open={open}
       onClose={onClose}
@@ -206,12 +209,19 @@ export default function SocioForm({ socio, open, onClose, onSaved, onDelete }) {
           </label>
           {conProveedor && (
             <div className="mt-4 grid gap-4 rounded-xl bg-slate-50 p-4 ring-1 ring-slate-200 sm:grid-cols-2">
-              <Field label="Proveedor" required error={errores.proveedor}>
+              <Field label="Proveedor" required error={errores.proveedor_id}>
                 {(p) => (
-                  <>
-                    <Input id={p.id} list="lista-proveedores" invalid={p.invalid} value={f.proveedor} onChange={set('proveedor')} />
-                    <datalist id="lista-proveedores">{proveedores.map((x) => <option key={x} value={x} />)}</datalist>
-                  </>
+                  <div className="flex gap-2">
+                    <Select id={p.id} invalid={p.invalid} aria-describedby={p.describedBy} value={f.proveedor_id} onChange={set('proveedor_id')}>
+                      <option value="">Elige un proveedor…</option>
+                      {proveedores
+                        .filter((x) => x.activo || String(x.id) === String(f.proveedor_id))
+                        .map((x) => <option key={x.id} value={x.id}>{x.nombre}</option>)}
+                    </Select>
+                    <Button variant="secondary" className="shrink-0" onClick={() => setCreandoProveedor(true)} aria-label="Crear proveedor nuevo">
+                      <Icon name="plus" />
+                    </Button>
+                  </div>
                 )}
               </Field>
               <Field label="Pago mensual al proveedor (CLP)" required error={errores.proveedor_monto}>
@@ -244,6 +254,17 @@ export default function SocioForm({ socio, open, onClose, onSaved, onDelete }) {
         )}
       </form>
     </Modal>
+    <ProveedorForm
+      open={creandoProveedor}
+      proveedor={null}
+      onClose={() => setCreandoProveedor(false)}
+      onSaved={(p) => {
+        setProveedores((lista) => [...lista, { ...p, activo: true }].sort((a, b) => a.nombre.localeCompare(b.nombre)))
+        setF((x) => ({ ...x, proveedor_id: String(p.id) }))
+        setCreandoProveedor(false)
+      }}
+    />
+    </>
   )
 }
 

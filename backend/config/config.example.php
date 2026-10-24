@@ -18,4 +18,14 @@ return [
         // Máximo de filas aceptadas por importación.
         'max_import_rows' => 5000,
     ],
+    'cobro' => [
+        // Reintentos de cobro por mes después del envío original (el documento indica 4).
+        'max_reintentos' => 4,
+        // Códigos del convenio PAC con el Banco de Chile (tomados del archivo de ejemplo de la Fundación).
+        'pac' => [
+            'codigo_banco' => '012',
+            'codigo_empresa' => '004',
+            'codigo_convenio' => '065',
+        ],
+    ],
 ];

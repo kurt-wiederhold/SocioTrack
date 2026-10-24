@@ -58,9 +58,43 @@ export const socios = {
   create: (data) => request('POST', '/socios', data),
   update: (id, data) => request('PUT', `/socios/${id}`, data),
   remove: (id) => request('DELETE', `/socios/${id}`),
-  proveedores: () => request('GET', '/socios/proveedores'),
   importar: (filas, { simular, actualizarExistentes }) =>
     request('POST', '/socios/importar', { filas, simular, actualizar_existentes: actualizarExistentes }),
+  revisarAlertas: (ids) => request('POST', '/socios/alertas/revisar', ids ? { ids } : { todos: true }),
+}
+
+const crud = (ruta) => ({
+  list: () => request('GET', ruta),
+  create: (data) => request('POST', ruta, data),
+  update: (id, data) => request('PUT', `${ruta}/${id}`, data),
+  remove: (id) => request('DELETE', `${ruta}/${id}`),
+})
+export const categorias = crud('/categorias')
+export const proveedores = crud('/proveedores')
+
+export const cobros = {
+  resumen: (periodo) => request('GET', `/cobros?periodo=${encodeURIComponent(periodo)}`),
+  generar: (data) => request('POST', '/cobros/nominas', data),
+  nomina: (id) => request('GET', `/cobros/nominas/${id}`),
+  respuesta: (id, data) => request('POST', `/cobros/nominas/${id}/respuesta`, data),
+  remove: (id) => request('DELETE', `/cobros/nominas/${id}`),
+  /** Descarga el archivo de la nómina (TXT para el banco, CSV para Transbank). */
+  descargar: async (id) => {
+    const res = await fetch(`${BASE}/cobros/nominas/${id}/archivo`, { credentials: 'same-origin' })
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      if (res.status === 401) onUnauthorized()
+      throw new ApiError(res.status, data.error ?? `Error ${res.status}`)
+    }
+    const nombre = /filename="([^"]+)"/.exec(res.headers.get('Content-Disposition') ?? '')?.[1] ?? 'nomina.txt'
+    const url = URL.createObjectURL(await res.blob())
+    const a = Object.assign(document.createElement('a'), { href: url, download: nombre })
+    document.body.append(a)
+    a.click()
+    a.remove()
+    setTimeout(() => URL.revokeObjectURL(url), 1000)
+    return nombre
+  },
 }
 
 function clean(obj) {

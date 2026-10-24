@@ -1,10 +1,10 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import * as api from '../../lib/api'
-import { formatCLP, formatFecha, formatMes } from '../../lib/format'
+import { formatCLP, formatFecha, formatMes, rangoTexto } from '../../lib/format'
 import { formatRut } from '../../lib/rut'
 import { Badge, Button, ConfirmDialog, Icon, Input, Select, Spinner } from '../../components/ui'
 import { useToast } from '../../components/Toast'
-import { ESTADOS, MEDIOS, PROVEEDOR_ESTADOS, RANGOS_MONTO } from './constants'
+import { ESTADOS, MEDIOS, PROVEEDOR_ESTADOS } from './constants'
 import SocioForm from './SocioForm'
 
 // La librería de Excel pesa ~400 KB: se carga solo cuando se usa.
@@ -12,13 +12,26 @@ const ImportarSocios = lazy(() => import('./ImportarSocios'))
 const excel = () => import('../../lib/excel')
 
 const FILTROS_INICIALES = {
-  buscar: '', estado: '', medio_pago: '', proveedor_estado: '', monto_min: '', monto_max: '',
+  buscar: '', estado: '', medio_pago: '', categoria_id: '', proveedor_id: '', proveedor_estado: '',
   orden: 'nombre', dir: 'asc', pagina: 1, por_pagina: 25,
+}
+
+// Otras secciones enlazan con filtros: #/socios?categoria_id=2, #/socios?proveedor_id=1
+function filtrosDesdeHash() {
+  const q = new URLSearchParams(window.location.hash.split('?')[1] ?? '')
+  const f = { ...FILTROS_INICIALES }
+  for (const k of ['estado', 'medio_pago', 'categoria_id', 'proveedor_id', 'proveedor_estado']) {
+    if (q.get(k)) f[k] = q.get(k)
+  }
+  return f
 }
 
 export default function SociosPage() {
   const toast = useToast()
-  const [filtros, setFiltros] = useState(FILTROS_INICIALES)
+  const [filtros, setFiltros] = useState(filtrosDesdeHash)
+  const [categorias, setCategorias] = useState([])
+  const [proveedores, setProveedores] = useState([])
+  const [revisando, setRevisando] = useState(false)
   const [busqueda, setBusqueda] = useState('')
   const [data, setData] = useState(null)
   const [cargando, setCargando] = useState(true)
@@ -54,6 +67,11 @@ export default function SociosPage() {
     cargar()
   }, [cargar])
 
+  useEffect(() => {
+    api.categorias.list().then((r) => setCategorias(r.datos), () => {})
+    api.proveedores.list().then((r) => setProveedores(r.datos), () => {})
+  }, [])
+
   // Búsqueda con pequeña espera para no consultar en cada tecla.
   useEffect(() => {
     const t = setTimeout(() => setFiltros((f) => (f.buscar === busqueda ? f : { ...f, buscar: busqueda, pagina: 1 })), 300)
@@ -63,15 +81,26 @@ export default function SociosPage() {
   const filtrar = (k, v) => setFiltros((f) => ({ ...f, [k]: v, pagina: 1 }))
   const ordenar = (col) =>
     setFiltros((f) => ({ ...f, orden: col, dir: f.orden === col && f.dir === 'asc' ? 'desc' : 'asc', pagina: 1 }))
-  const hayFiltros = filtros.buscar || filtros.estado || filtros.medio_pago || filtros.proveedor_estado || filtros.monto_min !== '' || filtros.monto_max !== ''
+  const hayFiltros = filtros.buscar || filtros.estado || filtros.medio_pago || filtros.categoria_id || filtros.proveedor_id || filtros.proveedor_estado
   const limpiarFiltros = () => {
     setBusqueda('')
     setFiltros((f) => ({ ...FILTROS_INICIALES, orden: f.orden, dir: f.dir, por_pagina: f.por_pagina }))
+    if (window.location.hash.includes('?')) window.history.replaceState(null, '', '#/socios')
   }
-  const rangoActual = `${filtros.monto_min}-${filtros.monto_max}`
-  const elegirRango = (valor) => {
-    const [min = '', max = ''] = valor ? valor.split('-') : []
-    setFiltros((f) => ({ ...f, monto_min: min, monto_max: max, pagina: 1 }))
+  const proveedorFiltrado = proveedores.find((p) => String(p.id) === String(filtros.proveedor_id))
+
+  const marcarRevisados = async () => {
+    setRevisando(true)
+    try {
+      const r = await api.socios.revisarAlertas()
+      toast(`${r.marcados} alerta${r.marcados === 1 ? '' : 's'} marcada${r.marcados === 1 ? '' : 's'} como revisada${r.marcados === 1 ? '' : 's'}`)
+      if (filtros.proveedor_estado === 'por_revisar') filtrar('proveedor_estado', '')
+      else cargar()
+    } catch (e) {
+      toast(e.message, 'error')
+    } finally {
+      setRevisando(false)
+    }
   }
 
   const eliminar = async () => {
@@ -135,6 +164,25 @@ export default function SociosPage() {
         </div>
       )}
 
+      {resumen?.proveedor_por_revisar > 0 && (
+        <div className="flex flex-col gap-3 rounded-xl bg-emerald-50 p-4 ring-1 ring-emerald-200 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex gap-3">
+            <Icon name="check" className="mt-0.5 size-5 shrink-0 text-emerald-600" />
+            <p className="text-sm text-emerald-900">
+              {resumen.proveedor_por_revisar > 1 ? (
+                <><strong>{resumen.proveedor_por_revisar} socios</strong> terminaron de pagarse al proveedor y ahora aportan <strong>100% a la Fundación</strong>.</>
+              ) : (
+                <><strong>1 socio</strong> terminó de pagarse al proveedor y ahora aporta <strong>100% a la Fundación</strong>.</>
+              )}
+            </p>
+          </div>
+          <div className="flex shrink-0 gap-2">
+            <Button variant="secondary" size="sm" onClick={() => filtrar('proveedor_estado', 'por_revisar')}>Ver socios</Button>
+            <Button size="sm" loading={revisando} onClick={marcarRevisados}><Icon name="check" /> Marcar revisados</Button>
+          </div>
+        </div>
+      )}
+
       {resumen?.proveedor_ultimo_mes > 0 && (
         <div className="flex flex-col gap-3 rounded-xl bg-amber-50 p-4 ring-1 ring-amber-200 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex gap-3">
@@ -173,18 +221,26 @@ export default function SociosPage() {
               <option value="">Medio: todos</option>
               {Object.entries(MEDIOS).map(([k, v]) => <option key={k} value={k}>{v.label} · {v.detalle}</option>)}
             </Select>
-            <Select aria-label="Rango de monto" value={rangoActual === '-' ? '' : rangoActual} onChange={(e) => elegirRango(e.target.value)} className="xl:w-44">
-              <option value="">Monto: todos</option>
-              {RANGOS_MONTO.map((r) => <option key={r.label} value={`${r.min ?? ''}-${r.max ?? ''}`}>{r.label}</option>)}
+            <Select aria-label="Categoría" value={filtros.categoria_id} onChange={(e) => filtrar('categoria_id', e.target.value)} className="xl:w-44">
+              <option value="">Categoría: todas</option>
+              {categorias.map((c) => <option key={c.id} value={c.id}>{c.nombre} ({rangoTexto(c)})</option>)}
+              <option value="sin">Sin categoría</option>
             </Select>
             <Select aria-label="Proveedor" value={filtros.proveedor_estado} onChange={(e) => filtrar('proveedor_estado', e.target.value)} className="xl:w-44">
               <option value="">Proveedor: todos</option>
               <option value="pagando">Pagando a proveedor</option>
               <option value="ultimo_mes">Último mes de pago</option>
               <option value="finalizado">100% Fundación</option>
+              <option value="por_revisar">100% Fundación (sin revisar)</option>
               <option value="sin">Sin proveedor</option>
             </Select>
           </div>
+          {proveedorFiltrado && (
+            <span className="inline-flex items-center gap-1 self-start rounded-full bg-brand-50 py-1 pl-3 pr-1 text-xs font-medium text-brand-700 ring-1 ring-brand-200 xl:self-center">
+              Proveedor: {proveedorFiltrado.nombre}
+              <button type="button" onClick={() => filtrar('proveedor_id', '')} className="rounded-full px-1.5 hover:bg-brand-100" aria-label="Quitar filtro de proveedor">×</button>
+            </span>
+          )}
           {hayFiltros && (
             <button type="button" onClick={limpiarFiltros} className="self-start text-sm font-medium text-brand-700 hover:underline xl:self-center xl:whitespace-nowrap">
               Limpiar filtros
@@ -218,6 +274,7 @@ export default function SociosPage() {
                   <div className="mt-2 flex flex-wrap items-center gap-1.5">
                     <Badge color={ESTADOS[s.estado].color}>{ESTADOS[s.estado].label}</Badge>
                     <Badge color={MEDIOS[s.medio_pago].color}>{s.medio_pago}</Badge>
+                    {s.categoria && <Badge color={s.categoria_color}>{s.categoria}</Badge>}
                     {s.proveedor_estado && (
                       <Badge color={PROVEEDOR_ESTADOS[s.proveedor_estado].color}>
                         {s.proveedor_estado === 'finalizado' ? '100% Fundación' : `${s.proveedor} ${s.proveedor_cuotas_transcurridas}/${s.proveedor_cuotas}`}
@@ -255,7 +312,10 @@ export default function SociosPage() {
                       <Badge color={MEDIOS[s.medio_pago].color}>{s.medio_pago}</Badge>
                       {s.banco && <span className="ml-2 text-xs text-slate-500">{s.banco}</span>}
                     </td>
-                    <td className="whitespace-nowrap px-4 py-3 text-right font-medium tabular-nums text-slate-900">{formatCLP(s.monto)}</td>
+                    <td className="whitespace-nowrap px-4 py-3 text-right">
+                      <div className="font-medium tabular-nums text-slate-900">{formatCLP(s.monto)}</div>
+                      {s.categoria && <Badge color={s.categoria_color} className="mt-0.5">{s.categoria}</Badge>}
+                    </td>
                     <td className="px-4 py-3"><Badge color={ESTADOS[s.estado].color}>{ESTADOS[s.estado].label}</Badge></td>
                     <td className="px-4 py-3"><ProveedorCell s={s} /></td>
                     <td className="whitespace-nowrap px-4 py-3 text-slate-600">{formatFecha(s.fecha_alta)}</td>
@@ -391,7 +451,7 @@ function ProveedorCell({ s }) {
     <div className="min-w-36">
       <div className="truncate text-slate-700">{s.proveedor}</div>
       {s.proveedor_estado === 'finalizado' ? (
-        <Badge color="green" className="mt-1">{est.label}</Badge>
+        <Badge color="green" className="mt-1">{s.proveedor_por_revisar ? '● 100% Fundación (nuevo)' : est.label}</Badge>
       ) : (
         <div className="mt-1 flex items-center gap-2" title={`Último pago al proveedor: ${formatMes(s.proveedor_fin)}`}>
           <div className="h-1.5 w-16 overflow-hidden rounded-full bg-slate-200">

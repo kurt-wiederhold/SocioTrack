@@ -11,6 +11,8 @@ require $backend . '/src/bootstrap.php';
 use App\Auth;
 use App\Config;
 use App\Controllers\AuthController;
+use App\Controllers\CatalogoController;
+use App\Controllers\CobroController;
 use App\Controllers\SocioController;
 use App\Http;
 use App\HttpError;
@@ -40,11 +42,29 @@ try {
     };
     $router->add('GET', '/socios', $protegida([SocioController::class, 'index']));
     $router->add('POST', '/socios', $protegida([SocioController::class, 'store']));
-    $router->add('GET', '/socios/proveedores', $protegida([SocioController::class, 'proveedores']));
     $router->add('POST', '/socios/importar', $protegida([SocioController::class, 'import']));
+    $router->add('POST', '/socios/alertas/revisar', $protegida([SocioController::class, 'revisarAlertas']));
     $router->add('GET', '/socios/{id}', $protegida([SocioController::class, 'show']));
     $router->add('PUT', '/socios/{id}', $protegida([SocioController::class, 'update']));
     $router->add('DELETE', '/socios/{id}', $protegida([SocioController::class, 'destroy']));
+
+    // Sectorización por categorías y proveedores (base independiente)
+    $router->add('GET', '/categorias', $protegida([CatalogoController::class, 'categorias']));
+    $router->add('POST', '/categorias', $protegida([CatalogoController::class, 'crearCategoria']));
+    $router->add('PUT', '/categorias/{id}', $protegida([CatalogoController::class, 'editarCategoria']));
+    $router->add('DELETE', '/categorias/{id}', $protegida([CatalogoController::class, 'eliminarCategoria']));
+    $router->add('GET', '/proveedores', $protegida([CatalogoController::class, 'proveedores']));
+    $router->add('POST', '/proveedores', $protegida([CatalogoController::class, 'crearProveedor']));
+    $router->add('PUT', '/proveedores/{id}', $protegida([CatalogoController::class, 'editarProveedor']));
+    $router->add('DELETE', '/proveedores/{id}', $protegida([CatalogoController::class, 'eliminarProveedor']));
+
+    // Ciclo de cobro
+    $router->add('GET', '/cobros', $protegida([CobroController::class, 'index']));
+    $router->add('POST', '/cobros/nominas', $protegida([CobroController::class, 'generar']));
+    $router->add('GET', '/cobros/nominas/{id}', $protegida([CobroController::class, 'ver']));
+    $router->add('GET', '/cobros/nominas/{id}/archivo', $protegida([CobroController::class, 'archivo']));
+    $router->add('POST', '/cobros/nominas/{id}/respuesta', $protegida([CobroController::class, 'respuesta']));
+    $router->add('DELETE', '/cobros/nominas/{id}', $protegida([CobroController::class, 'eliminar']));
 
     $router->dispatch($method, $path);
 } catch (HttpError $e) {

@@ -8,15 +8,22 @@ final class SocioRepository
     /** Columnas editables (las que valida SocioValidator). */
     public const CAMPOS = [
         'rut', 'nombre', 'email', 'telefono', 'medio_pago', 'banco', 'monto', 'estado',
-        'fecha_alta', 'fecha_baja', 'proveedor', 'proveedor_monto', 'proveedor_cuotas',
+        'fecha_alta', 'fecha_baja', 'proveedor_id', 'proveedor_monto', 'proveedor_cuotas',
         'proveedor_inicio', 'proveedor_fin', 'observaciones',
     ];
 
     private const ORDEN = ['nombre', 'rut', 'monto', 'fecha_alta', 'estado', 'creado_en', 'proveedor_fin'];
 
+    /** Socio + nombre del proveedor + categoría calculada por su monto. */
+    private const SELECT = "SELECT s.*, p.nombre AS proveedor,
+                c.id AS categoria_id, c.nombre AS categoria, c.color AS categoria_color
+            FROM socios s
+            LEFT JOIN proveedores p ON p.id = s.proveedor_id
+            LEFT JOIN categorias c ON s.monto >= c.monto_min AND (c.monto_max IS NULL OR s.monto <= c.monto_max)";
+
     public static function find(int $id): ?array
     {
-        $row = Db::one('SELECT * FROM socios WHERE id = ?', [$id]);
+        $row = Db::one(self::SELECT . ' WHERE s.id = ?', [$id]);
         return $row ? self::present($row) : null;
     }
 
@@ -26,7 +33,8 @@ final class SocioRepository
     }
 
     /**
-     * @param array $f filtros: buscar, estado, medio_pago, proveedor_estado, orden, dir, pagina, por_pagina
+     * @param array $f filtros: buscar, estado, medio_pago, categoria_id, proveedor_id,
+     *                 proveedor_estado, orden, dir, pagina, por_pagina
      */
     public static function search(array $f): array
     {
@@ -38,9 +46,10 @@ final class SocioRepository
         $pagina = max(1, (int) ($f['pagina'] ?? 1));
         $offset = ($pagina - 1) * $porPagina;
 
-        $total = (int) Db::one("SELECT COUNT(*) AS n FROM socios $where", $params)['n'];
+        $from = substr(self::SELECT, strpos(self::SELECT, 'FROM'));
+        $total = (int) Db::one("SELECT COUNT(*) AS n $from $where", $params)['n'];
         $rows = Db::all(
-            "SELECT * FROM socios $where ORDER BY $orden $dir, id ASC LIMIT $porPagina OFFSET $offset",
+            self::SELECT . " $where ORDER BY s.$orden $dir, s.id ASC LIMIT $porPagina OFFSET $offset",
             $params
         );
 
@@ -65,19 +74,30 @@ final class SocioRepository
                 SUM(CASE WHEN estado = 'activo' THEN monto ELSE 0 END) AS monto_mensual,
                 SUM(CASE WHEN estado <> 'baja' AND proveedor_fin = ? THEN 1 ELSE 0 END) AS proveedor_ultimo_mes,
                 SUM(CASE WHEN estado <> 'baja' AND proveedor_fin >= ? THEN 1 ELSE 0 END) AS proveedor_pagando,
-                SUM(CASE WHEN estado <> 'baja' AND proveedor_fin >= ? THEN proveedor_monto ELSE 0 END) AS proveedor_monto_mensual
+                SUM(CASE WHEN estado <> 'baja' AND proveedor_fin >= ? THEN proveedor_monto ELSE 0 END) AS proveedor_monto_mensual,
+                SUM(CASE WHEN estado <> 'baja' AND proveedor_fin < ? AND proveedor_revisado_en IS NULL THEN 1 ELSE 0 END) AS proveedor_por_revisar
              FROM socios",
-            [$mes, $mes, $mes]
+            [$mes, $mes, $mes, $mes]
         );
         return array_map('intval', $r);
     }
 
-    public static function proveedores(): array
+    /**
+     * Marca como revisada la alerta "el socio pasó 100% a la Fundación".
+     * Sin ids: marca todas las pendientes. Devuelve cuántas se marcaron.
+     */
+    public static function marcarRevisados(?array $ids): int
     {
-        return array_column(
-            Db::all('SELECT DISTINCT proveedor FROM socios WHERE proveedor IS NOT NULL ORDER BY proveedor'),
-            'proveedor'
-        );
+        $sql = 'UPDATE socios SET proveedor_revisado_en = ? WHERE proveedor_fin < ? AND proveedor_revisado_en IS NULL';
+        $params = [date('Y-m-d H:i:s'), date('Y-m-01')];
+        if ($ids !== null) {
+            if (!$ids) {
+                return 0;
+            }
+            $sql .= ' AND id IN (' . implode(',', array_fill(0, count($ids), '?')) . ')';
+            array_push($params, ...$ids);
+        }
+        return Db::run($sql, $params);
     }
 
     public static function create(array $d, ?int $userId): int
@@ -96,6 +116,11 @@ final class SocioRepository
     public static function update(int $id, array $d, ?int $userId): void
     {
         $d = self::pick($d);
+        // Si cambia el fin del pago al proveedor, la alerta vuelve a quedar pendiente.
+        $antes = Db::one('SELECT proveedor_fin FROM socios WHERE id = ?', [$id]);
+        if ($antes && ($antes['proveedor_fin'] ?? null) !== ($d['proveedor_fin'] ?? null)) {
+            $d['proveedor_revisado_en'] = null;
+        }
         $d += ['actualizado_en' => date('Y-m-d H:i:s'), 'actualizado_por' => $userId];
         $set = implode(', ', array_map(fn ($c) => "$c = ?", array_keys($d)));
         Db::run("UPDATE socios SET $set WHERE id = ?", [...array_values($d), $id]);
@@ -109,14 +134,14 @@ final class SocioRepository
     /** Agrega campos calculados que necesita la interfaz. */
     public static function present(array $r): array
     {
-        foreach (['id', 'monto', 'proveedor_monto', 'proveedor_cuotas', 'creado_por', 'actualizado_por'] as $k) {
-            if ($r[$k] !== null) {
+        foreach (['id', 'monto', 'proveedor_id', 'proveedor_monto', 'proveedor_cuotas', 'creado_por', 'actualizado_por', 'categoria_id'] as $k) {
+            if (isset($r[$k])) {
                 $r[$k] = (int) $r[$k];
             }
         }
         $r['proveedor_estado'] = null;
         $r['proveedor_cuotas_transcurridas'] = null;
-        if ($r['proveedor'] !== null && $r['proveedor_fin'] !== null) {
+        if (!empty($r['proveedor_id']) && $r['proveedor_fin'] !== null) {
             $mes = date('Y-m-01');
             $r['proveedor_estado'] = match (true) {
                 $r['proveedor_fin'] < $mes => 'finalizado',
@@ -128,6 +153,8 @@ final class SocioRepository
             $meses = $hoy < $ini ? 0 : ($hoy->diff($ini)->y * 12 + $hoy->diff($ini)->m + 1);
             $r['proveedor_cuotas_transcurridas'] = min($meses, $r['proveedor_cuotas']);
         }
+        $r['proveedor_por_revisar'] = $r['proveedor_estado'] === 'finalizado'
+            && empty($r['proveedor_revisado_en']) && $r['estado'] !== 'baja';
         return $r;
     }
 
@@ -145,45 +172,52 @@ final class SocioRepository
         if ($q !== '') {
             // '!' como carácter de escape: funciona igual en MySQL y SQLite.
             $like = '%' . str_replace(['!', '%', '_'], ['!!', '!%', '!_'], mb_strtolower($q)) . '%';
-            $w[] = "(LOWER(nombre) LIKE ? ESCAPE '!' OR LOWER(email) LIKE ? ESCAPE '!' OR LOWER(proveedor) LIKE ? ESCAPE '!'"
-                . (preg_match('/\d{3}/', $q) ? " OR REPLACE(rut, '-', '') LIKE ?" : '') . ')';
+            $w[] = "(LOWER(s.nombre) LIKE ? ESCAPE '!' OR LOWER(s.email) LIKE ? ESCAPE '!' OR LOWER(p.nombre) LIKE ? ESCAPE '!'"
+                . (preg_match('/\d{3}/', $q) ? " OR REPLACE(s.rut, '-', '') LIKE ?" : '') . ')';
             array_push($p, $like, $like, $like);
             if (preg_match('/\d{3}/', $q)) {
                 $p[] = '%' . strtoupper(preg_replace('/[^0-9kK]/', '', $q)) . '%';
             }
         }
         if (in_array($f['estado'] ?? '', SocioValidator::ESTADOS, true)) {
-            $w[] = 'estado = ?';
+            $w[] = 's.estado = ?';
             $p[] = $f['estado'];
         }
         if (in_array($f['medio_pago'] ?? '', SocioValidator::MEDIOS_PAGO, true)) {
-            $w[] = 'medio_pago = ?';
+            $w[] = 's.medio_pago = ?';
             $p[] = $f['medio_pago'];
         }
-        // Rangos de monto definidos por la Fundación (sectorizar la base de cobro).
-        if (ctype_digit((string) ($f['monto_min'] ?? ''))) {
-            $w[] = 'monto >= ?';
-            $p[] = (int) $f['monto_min'];
+        // Sectorización por categoría (rango de monto definido por la Fundación).
+        $cat = (string) ($f['categoria_id'] ?? '');
+        if ($cat === 'sin') {
+            $w[] = 'c.id IS NULL';
+        } elseif (ctype_digit($cat)) {
+            $w[] = 'c.id = ?';
+            $p[] = (int) $cat;
         }
-        if (ctype_digit((string) ($f['monto_max'] ?? ''))) {
-            $w[] = 'monto <= ?';
-            $p[] = (int) $f['monto_max'];
+        if (ctype_digit((string) ($f['proveedor_id'] ?? ''))) {
+            $w[] = 's.proveedor_id = ?';
+            $p[] = (int) $f['proveedor_id'];
         }
         $mes = date('Y-m-01');
         switch ($f['proveedor_estado'] ?? '') {
             case 'sin':
-                $w[] = 'proveedor IS NULL';
+                $w[] = 's.proveedor_id IS NULL';
                 break;
             case 'pagando':
-                $w[] = 'proveedor_fin >= ?';
+                $w[] = 's.proveedor_fin >= ?';
                 $p[] = $mes;
                 break;
             case 'ultimo_mes':
-                $w[] = 'proveedor_fin = ?';
+                $w[] = 's.proveedor_fin = ?';
                 $p[] = $mes;
                 break;
             case 'finalizado':
-                $w[] = 'proveedor_fin < ?';
+                $w[] = 's.proveedor_fin < ?';
+                $p[] = $mes;
+                break;
+            case 'por_revisar':
+                $w[] = "s.proveedor_fin < ? AND s.proveedor_revisado_en IS NULL AND s.estado <> 'baja'";
                 $p[] = $mes;
                 break;
         }

@@ -12,7 +12,9 @@ if (PHP_SAPI !== 'cli') {
 }
 require __DIR__ . '/../src/bootstrap.php';
 
+use App\Categorias;
 use App\Db;
+use App\Proveedores;
 use App\Rut;
 use App\SocioRepository;
 use App\SocioValidator;
@@ -32,6 +34,13 @@ if (!Db::one('SELECT id FROM usuarios WHERE email = ?', [DEMO_EMAIL])) {
     Db::run('INSERT INTO usuarios (email, nombre, password_hash, activo, creado_en) VALUES (?, ?, ?, 1, ?)', [
         DEMO_EMAIL, 'Usuario Demo', password_hash(DEMO_PASSWORD, PASSWORD_DEFAULT), date('Y-m-d H:i:s'),
     ]);
+}
+
+// Categorías de ejemplo (la Fundación las ajusta en la pantalla Categorías).
+if (!Db::one('SELECT id FROM categorias LIMIT 1')) {
+    foreach ([['Básico', 0, 4999, 'gray'], ['Medio', 5000, 9999, 'blue'], ['Alto', 10000, 19999, 'green'], ['Mayor', 20000, null, 'brand']] as [$n, $min, $max, $c]) {
+        Categorias::save(['nombre' => $n, 'monto_min' => $min, 'monto_max' => $max, 'color' => $c]);
+    }
 }
 
 mt_srand(42);
@@ -73,6 +82,9 @@ for ($i = 0; $i < 60; $i++) {
             'proveedor_cuotas' => 12, 'proveedor_inicio' => date('Y-m-01', strtotime('first day of -11 months'))]);
     }
     [$d, $e] = SocioValidator::validate($fila);
+    if (!$e && $d['proveedor_nombre'] !== null) {
+        $d['proveedor_id'] = Proveedores::idPorNombre($d['proveedor_nombre']);
+    }
     if (!$e && !SocioRepository::findByRut($d['rut'])) {
         SocioRepository::create($d, null);
         $creados++;

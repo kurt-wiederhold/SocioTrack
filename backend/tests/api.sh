@@ -24,7 +24,7 @@ EOF
   php -r '
     require "src/bootstrap.php";
     $pdo = App\Db::pdo();
-    $pdo->exec("SET FOREIGN_KEY_CHECKS=0; DROP TABLE IF EXISTS socios, login_intentos, usuarios; SET FOREIGN_KEY_CHECKS=1;");
+    $pdo->exec("SET FOREIGN_KEY_CHECKS=0; DROP TABLE IF EXISTS cobro_detalles, cobro_nominas, socios, proveedores, categorias, login_intentos, usuarios; SET FOREIGN_KEY_CHECKS=1;");
     $pdo->exec(file_get_contents("database/schema.mysql.sql"));'
 else
   echo "Motor: SQLite"
@@ -119,9 +119,88 @@ req GET '/socios?medio_pago=PAT&orden=monto&dir=desc' >/dev/null; expect "orden 
 req GET "/socios?orden=nombre;DROP%20TABLE%20socios" >/dev/null; expect "orden no permitido se ignora" 3 "$(json total)"
 req GET "/socios?buscar=%25" >/dev/null;              expect "comodín % escapado" 0 "$(json total)"
 expect "resumen activos" 2 "$(json resumen.activos)"
-req GET '/socios?monto_min=5000&monto_max=8000' >/dev/null; expect "rango de monto" 1 "$(json total)"
-req GET '/socios?monto_min=abc' >/dev/null;           expect "rango inválido se ignora" 3 "$(json total)"
+req GET '/socios?categoria_id=abc' >/dev/null;        expect "categoría inválida se ignora" 3 "$(json total)"
 req GET '/socios?estado[]=x' >/dev/null;              expect "parámetro arreglo se ignora" 3 "$(json total)"
+
+echo "Categorías (sectorización)"
+expect "crear categoría -> 201" 201 "$(req POST /categorias '{"nombre":"Básico","monto_min":0,"monto_max":4999,"color":"blue"}')"
+CAT_BASICO=$(json dato.id)
+expect "crear categoría sin tope -> 201" 201 "$(req POST /categorias '{"nombre":"Alto","monto_min":"5.000"}')"
+CAT_ALTO=$(json dato.id)
+expect "rangos que se cruzan -> 422" 422 "$(req POST /categorias '{"nombre":"Cruce","monto_min":4000,"monto_max":6000}')"
+expect "nombre repetido -> 422" 422 "$(req POST /categorias '{"nombre":"básico","monto_min":90000}')"
+expect "máximo menor que mínimo -> 422" 422 "$(req POST /categorias '{"nombre":"Mal","monto_min":9000,"monto_max":100}')"
+req GET /categorias >/dev/null
+expect "socios activos en Básico" 1 "$(json datos.0.socios_activos)"
+expect "socios activos en Alto (excluye bajas)" 1 "$(json datos.1.socios_activos)"
+req GET "/socios?categoria_id=$CAT_ALTO" >/dev/null; expect "filtrar socios por categoría" 2 "$(json total)"
+expect "categoría calculada en el socio" "'Alto'" "$(json datos.0.categoria)"
+expect "editar categoría -> 200" 200 "$(req PUT /categorias/$CAT_BASICO '{"nombre":"Básico","monto_min":0,"monto_max":4999,"color":"green"}')"
+
+echo "Proveedores (base independiente)"
+req GET /proveedores >/dev/null
+expect "proveedor creado desde el nombre del socio" "'Captadora Sur'" "$(json datos.0.nombre)"
+PROV=$(json datos.0.id)
+expect "proveedor repetido -> 422" 422 "$(req POST /proveedores '{"nombre":"captadora sur"}')"
+expect "crear proveedor -> 201" 201 "$(req POST /proveedores '{"nombre":"Diálogo Directo","rut":"76.086.428-5","email":"contacto@dialogo.test"}')"
+expect "RUT de proveedor normalizado" "'76086428-5'" "$(json dato.rut)"
+PROV2=$(json dato.id)
+expect "RUT de proveedor inválido -> 422" 422 "$(req POST /proveedores '{"nombre":"Malo","rut":"1-2"}')"
+expect "proveedor sin socios se puede eliminar -> 200" 200 "$(req DELETE /proveedores/$PROV)"
+expect "socio con proveedor inexistente -> 422" 422 "$(req POST /socios '{"rut":"12345678-5","nombre":"Ana","medio_pago":"PAC","monto":6000,"proveedor_id":9999,"proveedor_monto":1000,"proveedor_cuotas":6}')"
+expect "socio con proveedor (fin de pago ya pasó) -> 201" 201 "$(req POST /socios "{\"rut\":\"12345678-5\",\"nombre\":\"Ana Prueba\",\"medio_pago\":\"PAC\",\"monto\":6000,\"fecha_alta\":\"2020-01-01\",\"proveedor_id\":$PROV2,\"proveedor_monto\":2500,\"proveedor_cuotas\":6,\"proveedor_inicio\":\"2020-01-01\"}")"
+ANA=$(json dato.id)
+expect "alerta: socio pasó 100% a la Fundación" true "$(json dato.proveedor_por_revisar)"
+expect "eliminar proveedor con socios -> 409" 409 "$(req DELETE /proveedores/$PROV2)"
+req GET /socios >/dev/null; expect "resumen: alertas por revisar" 1 "$(json resumen.proveedor_por_revisar)"
+req GET '/socios?proveedor_estado=por_revisar' >/dev/null; expect "filtro de alertas por revisar" 1 "$(json total)"
+expect "marcar alertas revisadas" 1 "$(req POST /socios/alertas/revisar '{"todos":true}' >/dev/null; json marcados)"
+req GET /socios >/dev/null; expect "alerta desaparece" 0 "$(json resumen.proveedor_por_revisar)"
+req GET /proveedores >/dev/null; expect "estadística: finalizados del proveedor" 1 "$(json datos.0.finalizados)"
+expect "eliminar proveedor sin socios -> 200" 200 "$(req POST /proveedores '{"nombre":"Temporal"}' >/dev/null; req DELETE /proveedores/$(json dato.id))"
+
+echo "Ciclo de cobro"
+P=$(date +%Y-%m)
+expect "periodo inválido -> 422" 422 "$(req GET '/cobros?periodo=2026-13')"
+req POST /cobros/nominas "{\"periodo\":\"$P\",\"medio_pago\":\"PAT\",\"simular\":true}" >/dev/null
+expect "simulación: socios PAT a cobrar" 2 "$(json registros)"
+expect "simulación por categoría" 1 "$(req POST /cobros/nominas "{\"periodo\":\"$P\",\"medio_pago\":\"PAT\",\"categoria_id\":$CAT_ALTO,\"simular\":true}" >/dev/null; json registros)"
+expect "fecha vencimiento antes de facturación -> 422" 422 "$(req POST /cobros/nominas "{\"periodo\":\"$P\",\"medio_pago\":\"PAT\",\"fecha_facturacion\":\"2026-10-20\",\"fecha_vencimiento\":\"2026-10-01\",\"simular\":false}")"
+expect "generar nómina PAT -> 201" 201 "$(req POST /cobros/nominas "{\"periodo\":\"$P\",\"medio_pago\":\"PAT\",\"simular\":false}")"
+NOM=$(json nomina.id)
+expect "número de envío" 1 "$(json nomina.numero)"
+expect "socios en cobro no se repiten" 0 "$(req POST /cobros/nominas "{\"periodo\":\"$P\",\"medio_pago\":\"PAT\",\"simular\":true}" >/dev/null; json registros)"
+expect "descargar archivo PAT -> 200" 200 "$(req GET /cobros/nominas/$NOM/archivo)"
+expect "línea Transbank V;monto;nombre;rut" 1 "$(grep -c '^V;1000;Daniel Villarroel;19081431-9' "$TMP/body")"
+RESP='{"simular":true,"sin_respuesta":"pendiente","filas":[{"rut":"19081431-9","estado":"cobrado","fecha":"2026-10-03"},{"rut":"16.886.595-3","estado":"rechazado","motivo":"TARJETA CON PROBLEMAS"},{"rut":"11111111-1","estado":"cobrado"}]}'
+req POST /cobros/nominas/$NOM/respuesta "$RESP" >/dev/null
+expect "cruce de respuesta (simulado)" '{"cobrados":1,"rechazados":1,"monto_cobrado":1000,"no_encontrados":1,"invalidas":0,"sin_respuesta":0}' "$(json conteo)"
+expect "aplicar respuesta -> 200" 200 "$(req POST /cobros/nominas/$NOM/respuesta "${RESP/\"simular\":true/\"simular\":false}")"
+expect "nómina queda respondida" "'respondida'" "$(json nomina.estado)"
+req GET "/cobros?periodo=$P" >/dev/null
+expect "resumen PAT: cobrados" 1 "$(json resumen.PAT.cobrados)"
+expect "resumen PAT: monto cobrado" 1000 "$(json resumen.PAT.monto_cobrado)"
+expect "resumen PAT: rechazado listo para reintento" 1 "$(json resumen.PAT.reintentos_disponibles)"
+expect "no se puede eliminar nómina respondida -> 409" 409 "$(req DELETE /cobros/nominas/$NOM)"
+for intento in 2 3 4 5; do
+  req POST /cobros/nominas "{\"periodo\":\"$P\",\"medio_pago\":\"PAT\",\"simular\":false}" >/dev/null
+  N=$(json nomina.id); R=$(json reintentos)
+  req POST /cobros/nominas/$N/respuesta '{"simular":false,"filas":[{"rut":"16886595-3","estado":"rechazado"}]}' >/dev/null
+done
+expect "último reintento era el intento 5" 1 "$R"
+req GET "/cobros?periodo=$P" >/dev/null
+expect "tras 1 envío + 4 reintentos queda agotado" 1 "$(json resumen.PAT.agotados)"
+expect "agotado ya no entra en nuevas nóminas" 0 "$(json resumen.PAT.por_enviar)"
+expect "generar nómina PAC -> 201" 201 "$(req POST /cobros/nominas "{\"periodo\":\"$P\",\"medio_pago\":\"PAC\",\"fecha_facturacion\":\"2026-10-20\",\"fecha_vencimiento\":\"2026-11-03\",\"simular\":false}")"
+NPAC=$(json nomina.id)
+req GET /cobros/nominas/$NPAC/archivo >/dev/null
+expect "PAC: todas las líneas miden 80 bytes" "80" "$(tr -d '\r' < "$TMP/body" | awk '{print length($0)}' | sort -u)"
+expect "PAC: detalle con RUT rellenado y monto con decimales" 1 "$(grep -c '^012004065D0123456785 \{23\}00000600000202610202026110' "$TMP/body")"
+expect "PAC: registro de totales" 1 "$(grep -c '^001004065T.\{33\}00000600000000001N0' "$TMP/body")"
+expect "respuesta PAC sin el socio marca rechazo" 1 "$(req POST /cobros/nominas/$NPAC/respuesta '{"simular":true,"sin_respuesta":"rechazado","filas":[]}' >/dev/null; json conteo.sin_respuesta)"
+expect "eliminar nómina sin respuestas -> 200" 200 "$(req DELETE /cobros/nominas/$NPAC)"
+expect "socio vuelve a quedar por enviar" 1 "$(req GET "/cobros?periodo=$P" >/dev/null; json resumen.PAC.por_enviar)"
+expect "eliminar socio conserva historial de cobros" 200 "$(req DELETE /socios/$ANA)"
 
 echo "Eliminar y cerrar sesión"
 expect "eliminar -> 200" 200 "$(req DELETE /socios/$ID)"

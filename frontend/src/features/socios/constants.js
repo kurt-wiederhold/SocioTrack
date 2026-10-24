@@ -20,10 +20,3 @@ export const BANCOS = [
   'Banco BICE', 'Banco Security', 'Banco Falabella', 'Banco Ripley', 'Banco Consorcio', 'Banco Internacional', 'Coopeuch',
 ]
 
-// Rangos para sectorizar la base de cobro. La Fundación puede ajustarlos aquí.
-export const RANGOS_MONTO = [
-  { label: 'Hasta $4.999', min: 0, max: 4999 },
-  { label: '$5.000 – $9.999', min: 5000, max: 9999 },
-  { label: '$10.000 – $19.999', min: 10000, max: 19999 },
-  { label: '$20.000 o más', min: 20000, max: null },
-]

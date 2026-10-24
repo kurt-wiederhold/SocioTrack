@@ -96,13 +96,22 @@ final class SocioValidator
         }
 
         // Proveedor (empresa captadora a la que se le paga por el socio durante N cuotas).
-        $d['proveedor'] = self::nullable(preg_replace('/\s+/u', ' ', self::str($in['proveedor'] ?? null)));
+        // Llega como proveedor_id (formulario) o como nombre en 'proveedor' (planilla Excel).
+        // El controlador comprueba que el id exista o resuelve/crea el proveedor por nombre.
+        $pid = $in['proveedor_id'] ?? null;
+        $d['proveedor_id'] = ((is_int($pid) || (is_string($pid) && ctype_digit($pid))) && (int) $pid > 0) ? (int) $pid : null;
+        if (!self::isEmpty($pid) && $d['proveedor_id'] === null) {
+            $e['proveedor_id'] = 'Proveedor inválido.';
+        }
+        $d['proveedor_nombre'] = $d['proveedor_id'] === null
+            ? self::nullable(preg_replace('/\s+/u', ' ', self::str($in['proveedor'] ?? null)))
+            : null;
         $d['proveedor_monto'] = null;
         $d['proveedor_cuotas'] = null;
         $d['proveedor_inicio'] = null;
         $d['proveedor_fin'] = null;
-        if ($d['proveedor'] !== null) {
-            if (mb_strlen($d['proveedor']) > 120) {
+        if ($d['proveedor_id'] !== null || $d['proveedor_nombre'] !== null) {
+            if ($d['proveedor_nombre'] !== null && mb_strlen($d['proveedor_nombre']) > 120) {
                 $e['proveedor'] = 'Máximo 120 caracteres.';
             }
             $d['proveedor_monto'] = self::money($in['proveedor_monto'] ?? null);

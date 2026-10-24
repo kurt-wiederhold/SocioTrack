@@ -75,5 +75,33 @@ check('monto con decimales ,00', $d['monto'], 1500);
 check('fecha imposible', isset($e['fecha_alta']), true);
 check('rut con espacios', Rut::normalize(' 12 345 678 5 '), '12345678-5');
 
+[$d, $e] = SocioValidator::validate($base + ['proveedor_id' => '7', 'proveedor_monto' => 2500, 'proveedor_cuotas' => 3]);
+check('proveedor por id', [$d['proveedor_id'], $d['proveedor_nombre']], [7, null]);
+[$d, $e] = SocioValidator::validate($base + ['proveedor_id' => 'abc']);
+check('proveedor_id inválido', isset($e['proveedor_id']), true);
+
+echo "Formato nómina PAC (Banco de Chile) y PAT (Transbank)\n";
+require __DIR__ . '/../src/Formatos.php';
+$pac = ['codigo_banco' => '012', 'codigo_empresa' => '004', 'codigo_convenio' => '065'];
+$det = [
+    ['rut' => '12345678-5', 'monto' => 6000, 'intento' => 1, 'nombre' => 'Ana'],
+    ['rut' => '9999999-3', 'monto' => 5000, 'intento' => 1, 'nombre' => 'Luis'],
+];
+$lineas = explode("\r\n", rtrim(App\Formatos::nominaPac($det, '2019-12-20', '2020-01-03', $pac), "\r\n"));
+check('identificador de servicio con ceros', App\Formatos::identificadorServicio('9827237-K'), '009827237K');
+check('todas las líneas de 80 bytes', array_unique(array_map('strlen', $lineas)), [80]);
+check('detalle según especificación',
+    $lineas[0],
+    '012004065D' . str_pad('0123456785', 22) . ' ' . str_repeat(' ', 10) . '00000600000' . '20191220' . '20200103' . '..........');
+// Mismo registro de totales que el archivo real enviado por la Fundación (8 cargos por $41.000).
+$ocho = array_fill(0, 8, ['rut' => '12345678-5', 'monto' => 0, 'intento' => 1]);
+$ocho[0]['monto'] = 41000;
+$total = explode("\r\n", rtrim(App\Formatos::nominaPac($ocho, '2019-12-20', '2020-01-03', $pac), "\r\n"))[8];
+check('registro de totales idéntico al del banco', $total, '001004065T' . str_repeat(' ', 33) . '00004100000000008N0..................');
+$det[1]['intento'] = 3;
+$total = explode("\r\n", rtrim(App\Formatos::nominaPac($det, '2019-12-20', '2020-01-03', $pac), "\r\n"))[2];
+check('nómina con reintentos marca S', substr($total, 60, 2), 'S2');
+check('línea PAT', App\Formatos::nominaPat([['monto' => 7000, 'nombre' => 'José Ñuñez; Pérez', 'rut' => '16209682-6']]), "V;7000;Jose Nunez Perez;16209682-6\r\n");
+
 echo $fallos ? "\n$fallos prueba(s) fallaron\n" : "\nTodas las pruebas pasaron\n";
 exit($fallos ? 1 : 0);
