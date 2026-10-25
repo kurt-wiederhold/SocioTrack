@@ -23,14 +23,24 @@ const seccionActual = () => {
 export default function App() {
   const [usuario, setUsuario] = useState(undefined) // undefined = cargando
   const [seccion, setSeccion] = useState(seccionActual)
+  const [aviso, setAviso] = useState('')
 
   useEffect(() => {
-    api.setUnauthorizedHandler(() => setUsuario(null))
+    api.setUnauthorizedHandler(() => {
+      setUsuario(null)
+      setAviso('Tu sesión se cerró por inactividad. Ingresa de nuevo para continuar.')
+    })
     api.me().then((r) => setUsuario(r.usuario), () => setUsuario(null))
     const onHash = () => setSeccion(seccionActual())
     window.addEventListener('hashchange', onHash)
     return () => window.removeEventListener('hashchange', onHash)
   }, [])
+
+  // El título de la pestaña del navegador indica la sección actual.
+  useEffect(() => {
+    const s = SECCIONES.find((x) => x.id === seccion)
+    document.title = `${s.label} · Africa Dream`
+  }, [seccion])
 
   if (usuario === undefined) {
     return (
@@ -39,7 +49,7 @@ export default function App() {
       </div>
     )
   }
-  if (!usuario) return <Login onLogin={setUsuario} />
+  if (!usuario) return <Login aviso={aviso} onLogin={(u) => { setAviso(''); setUsuario(u) }} />
 
   const salir = async () => {
     await api.logout().catch(() => {})

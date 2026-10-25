@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import * as api from '../../lib/api'
 import { formatCLP, formatFecha, formatPeriodo, periodoActual, sumarMes } from '../../lib/format'
-import { Badge, Button, ConfirmDialog, Icon, Input, Spinner } from '../../components/ui'
+import { Badge, Button, ConfirmDialog, Icon, Spinner } from '../../components/ui'
 import { useToast } from '../../components/Toast'
 import GenerarNomina from './GenerarNomina'
 import RespuestaNomina from './RespuestaNomina'
@@ -61,13 +61,17 @@ export default function CobrosPage() {
           <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Cobros</h1>
           <p className="mt-1 text-sm text-slate-500">Ciclo mensual de cobro a socios por banco (PAC) y Transbank (PAT).</p>
         </div>
-        <div className="flex items-center gap-1 self-start rounded-lg bg-white p-1 shadow-sm ring-1 ring-slate-200 sm:self-auto">
-          <Button variant="ghost" size="sm" aria-label="Mes anterior" onClick={() => setPeriodo((p) => sumarMes(p, -1))}><Icon name="chevronLeft" /></Button>
-          <label className="relative">
-            <span className="sr-only">Periodo</span>
-            <Input type="month" value={periodo} onChange={(e) => e.target.value && setPeriodo(e.target.value)} className="w-40 py-1.5 text-center ring-0 shadow-none" />
-          </label>
-          <Button variant="ghost" size="sm" aria-label="Mes siguiente" onClick={() => setPeriodo((p) => sumarMes(p, 1))}><Icon name="chevronRight" /></Button>
+        <div className="flex flex-col items-start gap-1 sm:items-end">
+          <div className="flex items-center gap-1 rounded-lg bg-white p-1 shadow-sm ring-1 ring-slate-200">
+            <Button variant="ghost" size="sm" aria-label="Mes anterior" onClick={() => setPeriodo((p) => sumarMes(p, -1))}><Icon name="chevronLeft" /></Button>
+            <span className="w-40 text-center text-sm font-semibold text-slate-900" aria-live="polite">{mayuscula(formatPeriodo(periodo))}</span>
+            <Button variant="ghost" size="sm" aria-label="Mes siguiente" onClick={() => setPeriodo((p) => sumarMes(p, 1))}><Icon name="chevronRight" /></Button>
+          </div>
+          {periodo !== periodoActual() && (
+            <button type="button" onClick={() => setPeriodo(periodoActual())} className="text-xs font-medium text-brand-700 hover:underline">
+              Volver al mes actual
+            </button>
+          )}
         </div>
       </div>
 
@@ -153,6 +157,17 @@ export default function CobrosPage() {
   )
 }
 
+const mayuscula = (t) => t.charAt(0).toUpperCase() + t.slice(1)
+
+/** Explica por qué no hay nada que enviar, para que el botón deshabilitado tenga sentido. */
+function motivoSinEnvio(r) {
+  if (r.socios_activos === 0) return 'No hay socios activos con este medio de pago.'
+  if (r.pendientes_respuesta > 0) return 'Hay una nómina esperando respuesta: carga la respuesta para generar los reintentos.'
+  if (r.cobrados === r.socios_activos) return 'Todos los socios ya están cobrados este mes.'
+  if (r.agotados > 0) return 'Los socios sin cobrar ya usaron todos sus intentos del mes.'
+  return 'No hay socios pendientes de envío.'
+}
+
 function TarjetaMedio({ info, r, maxIntentos, onGenerar }) {
   const pct = r.socios_activos ? Math.round((100 * r.cobrados) / r.socios_activos) : 0
   return (
@@ -162,10 +177,11 @@ function TarjetaMedio({ info, r, maxIntentos, onGenerar }) {
           <h2 className="font-semibold text-slate-900">{info.titulo}</h2>
           <p className="text-xs text-slate-500">{r.socios_activos} socios activos · {formatCLP(r.monto_esperado)} esperado</p>
         </div>
-        <Button size="sm" onClick={onGenerar} disabled={r.por_enviar === 0} title={r.por_enviar === 0 ? 'No hay socios pendientes de envío' : undefined}>
+        <Button size="sm" onClick={onGenerar} disabled={r.por_enviar === 0}>
           <Icon name="plus" /> Generar nómina
         </Button>
       </div>
+      {r.por_enviar === 0 && <p className="mt-2 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600">{motivoSinEnvio(r)}</p>}
       <div className="mt-4">
         <div className="flex items-baseline justify-between">
           <span className="text-2xl font-semibold tabular-nums text-slate-900">{formatCLP(r.monto_cobrado)}</span>

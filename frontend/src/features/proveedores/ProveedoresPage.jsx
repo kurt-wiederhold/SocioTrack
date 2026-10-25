@@ -191,16 +191,25 @@ const VACIO = { nombre: '', rut: '', contacto: '', email: '', telefono: '', acti
 /** Formulario de proveedor. También se usa desde el formulario de socio para crear uno rápido. */
 export function ProveedorForm({ open, proveedor, onClose, onSaved, nombreInicial = '' }) {
   const [f, setF] = useState(VACIO)
+  const [inicial, setInicial] = useState('')
   const [errores, setErrores] = useState({})
   const [guardando, setGuardando] = useState(false)
 
   useEffect(() => {
     if (!open) return
-    setF(proveedor ? { ...VACIO, ...Object.fromEntries(Object.keys(VACIO).map((k) => [k, proveedor[k] ?? VACIO[k]])), rut: proveedor.rut ? formatRut(proveedor.rut) : '' } : { ...VACIO, nombre: nombreInicial })
+    const datos = proveedor ? { ...VACIO, ...Object.fromEntries(Object.keys(VACIO).map((k) => [k, proveedor[k] ?? VACIO[k]])), rut: proveedor.rut ? formatRut(proveedor.rut) : '' } : { ...VACIO, nombre: nombreInicial }
+    setF(datos)
+    setInicial(JSON.stringify(datos))
     setErrores({})
   }, [open, proveedor, nombreInicial])
 
   const set = (k) => (e) => setF((x) => ({ ...x, [k]: e.target.type === 'checkbox' ? e.target.checked : e.target.value }))
+  const cerrar = () => {
+    if (guardando) return
+    if (JSON.stringify(f) !== inicial && !window.confirm('Tienes cambios sin guardar. ¿Descartarlos?')) return
+    onClose()
+  }
+
 
   const guardar = async (e) => {
     e.preventDefault()
@@ -219,9 +228,9 @@ export function ProveedorForm({ open, proveedor, onClose, onSaved, nombreInicial
   return (
     <Modal
       open={open}
-      onClose={onClose}
+      onClose={cerrar}
       title={proveedor ? 'Editar proveedor' : 'Nuevo proveedor'}
-      footer={<><Button variant="secondary" onClick={onClose}>Cancelar</Button><Button type="submit" form="prov-form" loading={guardando}>Guardar</Button></>}
+      footer={<><Button variant="secondary" onClick={cerrar}>Cancelar</Button><Button type="submit" form="prov-form" loading={guardando}>Guardar</Button></>}
     >
       <form id="prov-form" onSubmit={guardar} noValidate className="grid gap-4 sm:grid-cols-2">
         {errores.general && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 sm:col-span-2" role="alert">{errores.general}</p>}

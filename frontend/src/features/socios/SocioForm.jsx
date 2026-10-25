@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import * as api from '../../lib/api'
 import { formatCLP, formatFecha, formatMes, hoyISO, ultimoMesProveedor } from '../../lib/format'
 import { formatRut, normalizeRut } from '../../lib/rut'
-import { Button, Field, Icon, Input, Modal, Select, Textarea } from '../../components/ui'
+import { Badge, Button, Field, Icon, Input, Modal, Select, Textarea } from '../../components/ui'
 import { ProveedorForm } from '../proveedores/ProveedoresPage'
 import { BANCOS, ESTADOS, MEDIOS } from './constants'
 
@@ -51,15 +51,29 @@ export default function SocioForm({ socio, open, onClose, onSaved, onDelete }) {
   const [guardando, setGuardando] = useState(false)
   const [proveedores, setProveedores] = useState([])
   const [creandoProveedor, setCreandoProveedor] = useState(false)
+  const [inicial, setInicial] = useState(null)
+  const [historial, setHistorial] = useState(null)
 
   useEffect(() => {
     if (!open) return
-    setF(desdeSocio(socio))
+    const datos = desdeSocio(socio)
+    setF(datos)
+    setInicial({ datos, conProveedor: !!socio?.proveedor_id })
     setConProveedor(!!socio?.proveedor_id)
     setErrores({})
     setErrorGeneral('')
+    setHistorial(null)
     api.proveedores.list().then((r) => setProveedores(r.datos), () => {})
+    if (socio) api.socios.cobros(socio.id).then((r) => setHistorial(r.datos), () => setHistorial([]))
   }, [open, socio])
+
+  // Evita perder lo escrito al cerrar sin querer (Esc, X, Cancelar o clic fuera).
+  const hayCambios = inicial && (JSON.stringify(f) !== JSON.stringify(inicial.datos) || conProveedor !== inicial.conProveedor)
+  const cerrar = () => {
+    if (guardando) return
+    if (hayCambios && !window.confirm('Tienes cambios sin guardar. ¿Descartarlos?')) return
+    onClose()
+  }
 
   const set = (k) => (e) => {
     const v = e.target.value
@@ -107,7 +121,7 @@ export default function SocioForm({ socio, open, onClose, onSaved, onDelete }) {
     <>
     <Modal
       open={open}
-      onClose={onClose}
+      onClose={cerrar}
       title={socio ? 'Editar socio' : 'Nuevo socio'}
       description={socio ? `${socio.nombre} · ${formatRut(socio.rut)}` : 'Registro manual de un socio recurrente'}
       footer={
@@ -117,7 +131,7 @@ export default function SocioForm({ socio, open, onClose, onSaved, onDelete }) {
               Eliminar
             </Button>
           )}
-          <Button variant="secondary" onClick={onClose}>Cancelar</Button>
+          <Button variant="secondary" onClick={cerrar}>Cancelar</Button>
           <Button type="submit" form="socio-form" loading={guardando}>
             {socio ? 'Guardar cambios' : 'Crear socio'}
           </Button>
@@ -247,8 +261,10 @@ export default function SocioForm({ socio, open, onClose, onSaved, onDelete }) {
           {(p) => <Textarea id={p.id} rows={3} maxLength={1000} invalid={p.invalid} value={f.observaciones} onChange={set('observaciones')} />}
         </Field>
 
+        {socio && <HistorialCobros historial={historial} />}
+
         {socio && (
-          <p className="text-xs text-slate-400">
+          <p className="text-xs text-slate-500">
             Registrado el {formatFecha(socio.creado_en)} · última modificación {formatFecha(socio.actualizado_en)}
           </p>
         )}
@@ -265,6 +281,38 @@ export default function SocioForm({ socio, open, onClose, onSaved, onDelete }) {
       }}
     />
     </>
+  )
+}
+
+const ESTADO_COBRO = {
+  cobrado: { label: 'Cobrado', color: 'green' },
+  pendiente: { label: 'Esperando respuesta', color: 'yellow' },
+  rechazado: { label: 'Rechazado', color: 'red' },
+}
+
+function HistorialCobros({ historial }) {
+  return (
+    <section>
+      <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Historial de cobros</h3>
+      {historial === null ? (
+        <p className="text-sm text-slate-400">Cargando…</p>
+      ) : historial.length === 0 ? (
+        <p className="rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-500">Aún no se ha incluido en ninguna nómina de cobro.</p>
+      ) : (
+        <ul className="max-h-56 divide-y divide-slate-100 overflow-y-auto rounded-lg ring-1 ring-slate-200">
+          {historial.map((h, i) => (
+            <li key={i} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2 text-sm">
+              <span className="w-20 font-medium capitalize text-slate-900">{formatMes(`${h.periodo}-01`)}</span>
+              <Badge color={ESTADO_COBRO[h.estado].color}>{ESTADO_COBRO[h.estado].label}</Badge>
+              <span className="text-xs text-slate-500">
+                {h.medio_pago} envío {h.numero} · {h.intento === 1 ? 'envío original' : `reintento ${h.intento - 1}`} · {formatCLP(h.monto)}
+                {h.motivo && ` · ${h.motivo}`}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   )
 }
 

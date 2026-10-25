@@ -135,18 +135,26 @@ export default function CategoriasPage() {
 
 function CategoriaForm({ open, categoria, onClose, onSaved }) {
   const [f, setF] = useState({ nombre: '', monto_min: '', monto_max: '', color: 'gray' })
+  const [inicial, setInicial] = useState('')
   const [errores, setErrores] = useState({})
   const [guardando, setGuardando] = useState(false)
 
   useEffect(() => {
     if (!open) return
-    setF(categoria
+    const datos = categoria
       ? { nombre: categoria.nombre, monto_min: String(categoria.monto_min), monto_max: categoria.monto_max == null ? '' : String(categoria.monto_max), color: categoria.color }
-      : { nombre: '', monto_min: '', monto_max: '', color: 'gray' })
+      : { nombre: '', monto_min: '', monto_max: '', color: 'gray' }
+    setF(datos)
+    setInicial(JSON.stringify(datos))
     setErrores({})
   }, [open, categoria])
 
   const set = (k) => (e) => setF((x) => ({ ...x, [k]: k.startsWith('monto') ? e.target.value.replace(/\D/g, '') : e.target.value }))
+  const cerrar = () => {
+    if (guardando) return
+    if (JSON.stringify(f) !== inicial && !window.confirm('Tienes cambios sin guardar. ¿Descartarlos?')) return
+    onClose()
+  }
 
   const guardar = async (e) => {
     e.preventDefault()
@@ -165,10 +173,10 @@ function CategoriaForm({ open, categoria, onClose, onSaved }) {
   return (
     <Modal
       open={open}
-      onClose={onClose}
+      onClose={cerrar}
       size="sm"
       title={categoria ? 'Editar categoría' : 'Nueva categoría'}
-      footer={<><Button variant="secondary" onClick={onClose}>Cancelar</Button><Button type="submit" form="cat-form" loading={guardando}>Guardar</Button></>}
+      footer={<><Button variant="secondary" onClick={cerrar}>Cancelar</Button><Button type="submit" form="cat-form" loading={guardando}>Guardar</Button></>}
     >
       <form id="cat-form" onSubmit={guardar} noValidate className="space-y-4">
         {errores.general && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">{errores.general}</p>}

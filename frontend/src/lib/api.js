@@ -55,6 +55,7 @@ export const logout = () => request('POST', '/auth/logout')
 export const socios = {
   list: (params) => request('GET', `/socios?${new URLSearchParams(clean(params))}`),
   get: (id) => request('GET', `/socios/${id}`),
+  cobros: (id) => request('GET', `/socios/${id}/cobros`),
   create: (data) => request('POST', '/socios', data),
   update: (id, data) => request('PUT', `/socios/${id}`, data),
   remove: (id) => request('DELETE', `/socios/${id}`),

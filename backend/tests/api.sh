@@ -200,6 +200,14 @@ expect "PAC: registro de totales" 1 "$(grep -c '^001004065T.\{33\}00000600000000
 expect "respuesta PAC sin el socio marca rechazo" 1 "$(req POST /cobros/nominas/$NPAC/respuesta '{"simular":true,"sin_respuesta":"rechazado","filas":[]}' >/dev/null; json conteo.sin_respuesta)"
 expect "eliminar nómina sin respuestas -> 200" 200 "$(req DELETE /cobros/nominas/$NPAC)"
 expect "socio vuelve a quedar por enviar" 1 "$(req GET "/cobros?periodo=$P" >/dev/null; json resumen.PAC.por_enviar)"
+req GET '/socios?cobro_mes=cobrado' >/dev/null;    expect "filtro cobro del mes: cobrado" 1 "$(json total)"
+expect "estado del cobro en el listado" "'cobrado'" "$(json datos.0.cobro_mes)"
+DANIEL=$(json datos.0.id)
+req GET '/socios?cobro_mes=rechazado' >/dev/null;  expect "filtro cobro del mes: rechazado" 1 "$(json total)"
+expect "intentos del mes en el listado" 5 "$(json datos.0.cobro_mes_intentos)"
+req GET '/socios?cobro_mes=sin_enviar' >/dev/null; expect "filtro cobro del mes: sin enviar" 1 "$(json total)"
+req GET "/socios/$DANIEL/cobros" >/dev/null;       expect "historial de cobros del socio" "'cobrado'" "$(json datos.0.estado)"
+expect "historial de socio inexistente -> 404" 404 "$(req GET /socios/9999/cobros)"
 expect "eliminar socio conserva historial de cobros" 200 "$(req DELETE /socios/$ANA)"
 
 echo "Eliminar y cerrar sesión"

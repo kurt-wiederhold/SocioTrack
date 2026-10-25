@@ -14,16 +14,34 @@ final class SocioRepository
 
     private const ORDEN = ['nombre', 'rut', 'monto', 'fecha_alta', 'estado', 'creado_en', 'proveedor_fin'];
 
-    /** Socio + nombre del proveedor + categoría calculada por su monto. */
-    private const SELECT = "SELECT s.*, p.nombre AS proveedor,
-                c.id AS categoria_id, c.nombre AS categoria, c.color AS categoria_color
-            FROM socios s
+    private const FROM = "FROM socios s
             LEFT JOIN proveedores p ON p.id = s.proveedor_id
             LEFT JOIN categorias c ON s.monto >= c.monto_min AND (c.monto_max IS NULL OR s.monto <= c.monto_max)";
 
+    /**
+     * Socio + nombre del proveedor + categoría calculada por su monto
+     * + estado de su cobro en el mes actual (para responder "¿este socio pagó este mes?").
+     */
+    private static function select(): string
+    {
+        $mes = self::periodoActual();
+        return "SELECT s.*, p.nombre AS proveedor,
+                c.id AS categoria_id, c.nombre AS categoria, c.color AS categoria_color,
+                (SELECT d.estado FROM cobro_detalles d WHERE d.socio_id = s.id AND d.periodo = '$mes'
+                 ORDER BY d.id DESC LIMIT 1) AS cobro_mes,
+                (SELECT COUNT(*) FROM cobro_detalles d WHERE d.socio_id = s.id AND d.periodo = '$mes') AS cobro_mes_intentos
+            " . self::FROM;
+    }
+
+    /** "AAAA-MM" generado por el servidor (seguro para ir dentro del SQL). */
+    private static function periodoActual(): string
+    {
+        return date('Y-m');
+    }
+
     public static function find(int $id): ?array
     {
-        $row = Db::one(self::SELECT . ' WHERE s.id = ?', [$id]);
+        $row = Db::one(self::select() . ' WHERE s.id = ?', [$id]);
         return $row ? self::present($row) : null;
     }
 
@@ -46,10 +64,9 @@ final class SocioRepository
         $pagina = max(1, (int) ($f['pagina'] ?? 1));
         $offset = ($pagina - 1) * $porPagina;
 
-        $from = substr(self::SELECT, strpos(self::SELECT, 'FROM'));
-        $total = (int) Db::one("SELECT COUNT(*) AS n $from $where", $params)['n'];
+        $total = (int) Db::one('SELECT COUNT(*) AS n ' . self::FROM . " $where", $params)['n'];
         $rows = Db::all(
-            self::SELECT . " $where ORDER BY s.$orden $dir, s.id ASC LIMIT $porPagina OFFSET $offset",
+            self::select() . " $where ORDER BY s.$orden $dir, s.id ASC LIMIT $porPagina OFFSET $offset",
             $params
         );
 
@@ -100,6 +117,23 @@ final class SocioRepository
         return Db::run($sql, $params);
     }
 
+    /** Historial de cobros del socio (más reciente primero). */
+    public static function cobros(int $id): array
+    {
+        $rows = Db::all(
+            'SELECT d.periodo, d.monto, d.intento, d.estado, d.codigo, d.motivo, d.fecha_cargo, n.medio_pago, n.numero
+             FROM cobro_detalles d JOIN cobro_nominas n ON n.id = d.nomina_id
+             WHERE d.socio_id = ? ORDER BY d.periodo DESC, d.id DESC LIMIT 36',
+            [$id]
+        );
+        return array_map(function ($r) {
+            foreach (['monto', 'intento', 'numero'] as $k) {
+                $r[$k] = (int) $r[$k];
+            }
+            return $r;
+        }, $rows);
+    }
+
     public static function create(array $d, ?int $userId): int
     {
         $d = self::pick($d);
@@ -134,7 +168,7 @@ final class SocioRepository
     /** Agrega campos calculados que necesita la interfaz. */
     public static function present(array $r): array
     {
-        foreach (['id', 'monto', 'proveedor_id', 'proveedor_monto', 'proveedor_cuotas', 'creado_por', 'actualizado_por', 'categoria_id'] as $k) {
+        foreach (['id', 'monto', 'proveedor_id', 'proveedor_monto', 'proveedor_cuotas', 'creado_por', 'actualizado_por', 'categoria_id', 'cobro_mes_intentos'] as $k) {
             if (isset($r[$k])) {
                 $r[$k] = (int) $r[$k];
             }
@@ -199,6 +233,24 @@ final class SocioRepository
             $w[] = 's.proveedor_id = ?';
             $p[] = (int) $f['proveedor_id'];
         }
+        // Estado del cobro del mes actual.
+        $periodo = self::periodoActual();
+        $existe = fn (string $estados) => "EXISTS (SELECT 1 FROM cobro_detalles d WHERE d.socio_id = s.id AND d.periodo = '$periodo' AND d.estado IN ($estados))";
+        switch ($f['cobro_mes'] ?? '') {
+            case 'cobrado':
+                $w[] = $existe("'cobrado'");
+                break;
+            case 'pendiente':
+                $w[] = $existe("'pendiente'");
+                break;
+            case 'rechazado':
+                $w[] = 'NOT ' . $existe("'cobrado', 'pendiente'") . ' AND ' . $existe("'rechazado'");
+                break;
+            case 'sin_enviar':
+                $w[] = "s.estado = 'activo' AND NOT " . $existe("'cobrado', 'pendiente', 'rechazado'");
+                break;
+        }
+
         $mes = date('Y-m-01');
         switch ($f['proveedor_estado'] ?? '') {
             case 'sin':

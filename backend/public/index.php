@@ -45,6 +45,7 @@ try {
     $router->add('POST', '/socios/importar', $protegida([SocioController::class, 'import']));
     $router->add('POST', '/socios/alertas/revisar', $protegida([SocioController::class, 'revisarAlertas']));
     $router->add('GET', '/socios/{id}', $protegida([SocioController::class, 'show']));
+    $router->add('GET', '/socios/{id}/cobros', $protegida([SocioController::class, 'cobros']));
     $router->add('PUT', '/socios/{id}', $protegida([SocioController::class, 'update']));
     $router->add('DELETE', '/socios/{id}', $protegida([SocioController::class, 'destroy']));
 

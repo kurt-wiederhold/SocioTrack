@@ -19,7 +19,7 @@ final class SocioController
     public static function index(): never
     {
         $filtros = array_intersect_key($_GET, array_flip([
-            'buscar', 'estado', 'medio_pago', 'categoria_id', 'proveedor_id', 'proveedor_estado', 'orden', 'dir', 'pagina', 'por_pagina',
+            'buscar', 'estado', 'medio_pago', 'categoria_id', 'proveedor_id', 'proveedor_estado', 'cobro_mes', 'orden', 'dir', 'pagina', 'por_pagina',
         ]));
         $filtros = array_map(fn ($v) => is_string($v) ? $v : '', $filtros);
 
@@ -48,6 +48,12 @@ final class SocioController
     public static function show(int $id): never
     {
         Http::json(['dato' => self::findOrFail($id)]);
+    }
+
+    public static function cobros(int $id): never
+    {
+        self::findOrFail($id);
+        Http::json(['datos' => SocioRepository::cobros($id)]);
     }
 
     public static function store(): never

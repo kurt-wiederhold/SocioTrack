@@ -20,3 +20,10 @@ export const BANCOS = [
   'Banco BICE', 'Banco Security', 'Banco Falabella', 'Banco Ripley', 'Banco Consorcio', 'Banco Internacional', 'Coopeuch',
 ]
 
+/** Estado del cobro del mes actual de cada socio. */
+export const COBRO_MES = {
+  cobrado: { label: 'Cobrado', color: 'green' },
+  pendiente: { label: 'Esperando respuesta', color: 'yellow' },
+  rechazado: { label: 'Rechazado', color: 'red' },
+  sin_enviar: { label: 'Sin enviar', color: 'gray' },
+}

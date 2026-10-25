@@ -4,7 +4,7 @@ import { formatCLP, formatFecha, formatMes, rangoTexto } from '../../lib/format'
 import { formatRut } from '../../lib/rut'
 import { Badge, Button, ConfirmDialog, Icon, Input, Select, Spinner } from '../../components/ui'
 import { useToast } from '../../components/Toast'
-import { ESTADOS, MEDIOS, PROVEEDOR_ESTADOS } from './constants'
+import { COBRO_MES, ESTADOS, MEDIOS, PROVEEDOR_ESTADOS } from './constants'
 import SocioForm from './SocioForm'
 
 // La librería de Excel pesa ~400 KB: se carga solo cuando se usa.
@@ -12,7 +12,7 @@ const ImportarSocios = lazy(() => import('./ImportarSocios'))
 const excel = () => import('../../lib/excel')
 
 const FILTROS_INICIALES = {
-  buscar: '', estado: '', medio_pago: '', categoria_id: '', proveedor_id: '', proveedor_estado: '',
+  buscar: '', estado: '', medio_pago: '', categoria_id: '', proveedor_id: '', proveedor_estado: '', cobro_mes: '',
   orden: 'nombre', dir: 'asc', pagina: 1, por_pagina: 25,
 }
 
@@ -20,7 +20,7 @@ const FILTROS_INICIALES = {
 function filtrosDesdeHash() {
   const q = new URLSearchParams(window.location.hash.split('?')[1] ?? '')
   const f = { ...FILTROS_INICIALES }
-  for (const k of ['estado', 'medio_pago', 'categoria_id', 'proveedor_id', 'proveedor_estado']) {
+  for (const k of ['estado', 'medio_pago', 'categoria_id', 'proveedor_id', 'proveedor_estado', 'cobro_mes']) {
     if (q.get(k)) f[k] = q.get(k)
   }
   return f
@@ -81,7 +81,7 @@ export default function SociosPage() {
   const filtrar = (k, v) => setFiltros((f) => ({ ...f, [k]: v, pagina: 1 }))
   const ordenar = (col) =>
     setFiltros((f) => ({ ...f, orden: col, dir: f.orden === col && f.dir === 'asc' ? 'desc' : 'asc', pagina: 1 }))
-  const hayFiltros = filtros.buscar || filtros.estado || filtros.medio_pago || filtros.categoria_id || filtros.proveedor_id || filtros.proveedor_estado
+  const hayFiltros = filtros.buscar || filtros.estado || filtros.medio_pago || filtros.categoria_id || filtros.proveedor_id || filtros.proveedor_estado || filtros.cobro_mes
   const limpiarFiltros = () => {
     setBusqueda('')
     setFiltros((f) => ({ ...FILTROS_INICIALES, orden: f.orden, dir: f.dir, por_pagina: f.por_pagina }))
@@ -200,7 +200,8 @@ export default function SociosPage() {
       )}
 
       <section className="overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-slate-200">
-        <div className="flex flex-col gap-3 border-b border-slate-200 p-4 xl:flex-row xl:items-center">
+        <div className="flex flex-col gap-3 border-b border-slate-200 p-4">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
           <div className="relative flex-1">
             <Icon name="search" className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
             <Input
@@ -212,21 +213,31 @@ export default function SociosPage() {
               onChange={(e) => setBusqueda(e.target.value)}
             />
           </div>
-          <div className="grid grid-cols-2 gap-2 md:grid-cols-4 xl:flex">
-            <Select aria-label="Estado" value={filtros.estado} onChange={(e) => filtrar('estado', e.target.value)} className="xl:w-40">
+          {hayFiltros && (
+            <button type="button" onClick={limpiarFiltros} className="self-start whitespace-nowrap px-1 text-sm font-medium text-brand-700 hover:underline sm:self-center">
+              Limpiar filtros
+            </button>
+          )}
+          </div>
+          <div className="grid grid-cols-2 gap-2 md:grid-cols-3 lg:grid-cols-5">
+            <Select aria-label="Cobro del mes" value={filtros.cobro_mes} onChange={(e) => filtrar('cobro_mes', e.target.value)}>
+              <option value="">Cobro: todos</option>
+              {Object.entries(COBRO_MES).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+            </Select>
+            <Select aria-label="Estado" value={filtros.estado} onChange={(e) => filtrar('estado', e.target.value)}>
               <option value="">Estado: todos</option>
               {Object.entries(ESTADOS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
             </Select>
-            <Select aria-label="Medio de pago" value={filtros.medio_pago} onChange={(e) => filtrar('medio_pago', e.target.value)} className="xl:w-40">
+            <Select aria-label="Medio de pago" value={filtros.medio_pago} onChange={(e) => filtrar('medio_pago', e.target.value)}>
               <option value="">Medio: todos</option>
               {Object.entries(MEDIOS).map(([k, v]) => <option key={k} value={k}>{v.label} · {v.detalle}</option>)}
             </Select>
-            <Select aria-label="Categoría" value={filtros.categoria_id} onChange={(e) => filtrar('categoria_id', e.target.value)} className="xl:w-44">
+            <Select aria-label="Categoría" value={filtros.categoria_id} onChange={(e) => filtrar('categoria_id', e.target.value)}>
               <option value="">Categoría: todas</option>
               {categorias.map((c) => <option key={c.id} value={c.id}>{c.nombre} ({rangoTexto(c)})</option>)}
               <option value="sin">Sin categoría</option>
             </Select>
-            <Select aria-label="Proveedor" value={filtros.proveedor_estado} onChange={(e) => filtrar('proveedor_estado', e.target.value)} className="xl:w-44">
+            <Select aria-label="Proveedor" value={filtros.proveedor_estado} onChange={(e) => filtrar('proveedor_estado', e.target.value)}>
               <option value="">Proveedor: todos</option>
               <option value="pagando">Pagando a proveedor</option>
               <option value="ultimo_mes">Último mes de pago</option>
@@ -236,15 +247,10 @@ export default function SociosPage() {
             </Select>
           </div>
           {proveedorFiltrado && (
-            <span className="inline-flex items-center gap-1 self-start rounded-full bg-brand-50 py-1 pl-3 pr-1 text-xs font-medium text-brand-700 ring-1 ring-brand-200 xl:self-center">
+            <span className="inline-flex items-center gap-1 self-start rounded-full bg-brand-50 py-1 pl-3 pr-1 text-xs font-medium text-brand-700 ring-1 ring-brand-200">
               Proveedor: {proveedorFiltrado.nombre}
               <button type="button" onClick={() => filtrar('proveedor_id', '')} className="rounded-full px-1.5 hover:bg-brand-100" aria-label="Quitar filtro de proveedor">×</button>
             </span>
-          )}
-          {hayFiltros && (
-            <button type="button" onClick={limpiarFiltros} className="self-start text-sm font-medium text-brand-700 hover:underline xl:self-center xl:whitespace-nowrap">
-              Limpiar filtros
-            </button>
           )}
         </div>
 
@@ -273,6 +279,7 @@ export default function SociosPage() {
                   </div>
                   <div className="mt-2 flex flex-wrap items-center gap-1.5">
                     <Badge color={ESTADOS[s.estado].color}>{ESTADOS[s.estado].label}</Badge>
+                    <CobroMesBadge s={s} max={MAX_INTENTOS} />
                     <Badge color={MEDIOS[s.medio_pago].color}>{s.medio_pago}</Badge>
                     {s.categoria && <Badge color={s.categoria_color}>{s.categoria}</Badge>}
                     {s.proveedor_estado && (
@@ -295,6 +302,7 @@ export default function SociosPage() {
                   <th className="px-4 py-3">Medio</th>
                   <Th col="monto" filtros={filtros} onSort={ordenar} className="text-right">Monto</Th>
                   <Th col="estado" filtros={filtros} onSort={ordenar}>Estado</Th>
+                  <th className="px-4 py-3">Cobro {mesCorto}</th>
                   <Th col="proveedor_fin" filtros={filtros} onSort={ordenar}>Proveedor</Th>
                   <Th col="fecha_alta" filtros={filtros} onSort={ordenar}>Alta</Th>
                   <th className="px-4 py-3"><span className="sr-only">Acciones</span></th>
@@ -302,7 +310,14 @@ export default function SociosPage() {
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {data.datos.map((s) => (
-                  <tr key={s.id} className="group cursor-pointer hover:bg-slate-50" onClick={() => setEditando(s)}>
+                  <tr
+                    key={s.id}
+                    tabIndex={0}
+                    className="group cursor-pointer hover:bg-slate-50 focus:bg-brand-50 focus:outline-none"
+                    onClick={() => setEditando(s)}
+                    onKeyDown={(e) => e.key === 'Enter' && e.target === e.currentTarget && setEditando(s)}
+                    aria-label={`Abrir ficha de ${s.nombre}`}
+                  >
                     <td className="max-w-64 px-4 py-3">
                       <div className="truncate font-medium text-slate-900">{s.nombre}</div>
                       {s.email && <div className="truncate text-xs text-slate-500">{s.email}</div>}
@@ -317,6 +332,7 @@ export default function SociosPage() {
                       {s.categoria && <Badge color={s.categoria_color} className="mt-0.5">{s.categoria}</Badge>}
                     </td>
                     <td className="px-4 py-3"><Badge color={ESTADOS[s.estado].color}>{ESTADOS[s.estado].label}</Badge></td>
+                    <td className="px-4 py-3"><CobroMesBadge s={s} max={MAX_INTENTOS} /></td>
                     <td className="px-4 py-3"><ProveedorCell s={s} /></td>
                     <td className="whitespace-nowrap px-4 py-3 text-slate-600">{formatFecha(s.fecha_alta)}</td>
                     <td className="whitespace-nowrap px-4 py-3 text-right">
@@ -441,6 +457,25 @@ function Th({ col, filtros, onSort, children, className = '' }) {
       </button>
     </th>
   )
+}
+
+// Máximo de envíos por mes (1 + 4 reintentos); el valor real viene del servidor en Cobros.
+const MAX_INTENTOS = 5
+const mesCorto = new Intl.DateTimeFormat('es-CL', { month: 'short' }).format(new Date()).replace('.', '')
+
+/** ¿Se le cobró este mes? Responde la duda más común sin entrar a Cobros. */
+function CobroMesBadge({ s, max }) {
+  if (!s.cobro_mes) {
+    return s.estado === 'activo' ? <Badge>{COBRO_MES.sin_enviar.label}</Badge> : <span className="text-slate-400">—</span>
+  }
+  if (s.cobro_mes === 'rechazado') {
+    return (
+      <Badge color="red" className="whitespace-nowrap">
+        {s.cobro_mes_intentos >= max ? 'Sin cobrar (agotado)' : `Rechazado · ${s.cobro_mes_intentos}/${max}`}
+      </Badge>
+    )
+  }
+  return <Badge color={COBRO_MES[s.cobro_mes].color}>{COBRO_MES[s.cobro_mes].label}</Badge>
 }
 
 function ProveedorCell({ s }) {
