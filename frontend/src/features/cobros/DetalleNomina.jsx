@@ -39,7 +39,8 @@ export default function DetalleNomina({ nomina, onClose, onDescargar }) {
           <div className="flex flex-wrap gap-2">
             {[['', `Todos · ${detalles.length}`], ...Object.entries(ESTADOS).map(([k, v]) => [k, `${v.label} · ${cuenta(k)}`])].map(([k, label]) => (
               <button key={k} type="button" onClick={() => setFiltro(k)}
-                className={`rounded-full px-3 py-1 text-xs font-medium ring-1 transition ${filtro === k ? 'bg-slate-800 text-white ring-transparent' : 'bg-white text-slate-700 ring-slate-300 hover:bg-slate-50'}`}>
+                aria-pressed={filtro === k}
+                className={`h-8 rounded-full px-3 text-xs font-medium ring-1 transition focus-visible:outline-2 focus-visible:outline-brand-600 pointer-coarse:h-10 ${filtro === k ? 'bg-slate-800 text-white ring-transparent' : 'bg-white text-slate-700 ring-slate-300 hover:bg-slate-50'}`}>
                 {label}
               </button>
             ))}

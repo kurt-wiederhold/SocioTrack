@@ -2,7 +2,7 @@ import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import * as api from '../../lib/api'
 import { formatCLP, formatFecha, formatMes, rangoTexto } from '../../lib/format'
 import { formatRut } from '../../lib/rut'
-import { Badge, Button, ConfirmDialog, Icon, Input, Select, Spinner } from '../../components/ui'
+import { Badge, Button, ConfirmDialog, Icon, IconButton, Input, Select, Spinner, textoAccion } from '../../components/ui'
 import { useToast } from '../../components/Toast'
 import { COBRO_MES, ESTADOS, MEDIOS, PROVEEDOR_ESTADOS } from './constants'
 import SocioForm from './SocioForm'
@@ -178,7 +178,7 @@ export default function SociosPage() {
           </div>
           <div className="flex shrink-0 gap-2">
             <Button variant="secondary" size="sm" onClick={() => filtrar('proveedor_estado', 'por_revisar')}>Ver socios</Button>
-            <Button size="sm" loading={revisando} onClick={marcarRevisados}><Icon name="check" /> Marcar revisados</Button>
+            <Button variant="secondary" size="sm" loading={revisando} onClick={marcarRevisados}><Icon name="check" /> Marcar revisados</Button>
           </div>
         </div>
       )}
@@ -214,7 +214,7 @@ export default function SociosPage() {
             />
           </div>
           {hayFiltros && (
-            <button type="button" onClick={limpiarFiltros} className="self-start whitespace-nowrap px-1 text-sm font-medium text-brand-700 hover:underline sm:self-center">
+            <button type="button" onClick={limpiarFiltros} className={`${textoAccion} self-start whitespace-nowrap px-1 text-sm sm:self-center`}>
               Limpiar filtros
             </button>
           )}
@@ -249,7 +249,7 @@ export default function SociosPage() {
           {proveedorFiltrado && (
             <span className="inline-flex items-center gap-1 self-start rounded-full bg-brand-50 py-1 pl-3 pr-1 text-xs font-medium text-brand-700 ring-1 ring-brand-200">
               Proveedor: {proveedorFiltrado.nombre}
-              <button type="button" onClick={() => filtrar('proveedor_id', '')} className="rounded-full px-1.5 hover:bg-brand-100" aria-label="Quitar filtro de proveedor">×</button>
+              <IconButton icon="x" label="Quitar filtro de proveedor" onClick={() => filtrar('proveedor_id', '')} className="size-7 rounded-full pointer-coarse:size-9" />
             </span>
           )}
         </div>
@@ -336,23 +336,9 @@ export default function SociosPage() {
                     <td className="px-4 py-3"><ProveedorCell s={s} /></td>
                     <td className="whitespace-nowrap px-4 py-3 text-slate-600">{formatFecha(s.fecha_alta)}</td>
                     <td className="whitespace-nowrap px-4 py-3 text-right">
-                      <div className="flex justify-end gap-1 opacity-70 group-hover:opacity-100">
-                        <button
-                          type="button"
-                          className="rounded-md p-1.5 text-slate-500 hover:bg-white hover:text-brand-700 hover:shadow-sm"
-                          onClick={(e) => { e.stopPropagation(); setEditando(s) }}
-                          aria-label={`Editar a ${s.nombre}`}
-                        >
-                          <Icon name="edit" />
-                        </button>
-                        <button
-                          type="button"
-                          className="rounded-md p-1.5 text-slate-500 hover:bg-white hover:text-red-600 hover:shadow-sm"
-                          onClick={(e) => { e.stopPropagation(); setEliminando(s) }}
-                          aria-label={`Eliminar a ${s.nombre}`}
-                        >
-                          <Icon name="trash" />
-                        </button>
+                      <div className="flex justify-end gap-1">
+                        <IconButton icon="edit" label={`Editar a ${s.nombre}`} onClick={(e) => { e.stopPropagation(); setEditando(s) }} />
+                        <IconButton icon="trash" tone="danger" label={`Eliminar a ${s.nombre}`} onClick={(e) => { e.stopPropagation(); setEliminando(s) }} />
                       </div>
                     </td>
                   </tr>
@@ -370,24 +356,20 @@ export default function SociosPage() {
                 {((data.pagina - 1) * data.por_pagina + 1).toLocaleString('es-CL')}–
                 {Math.min(data.pagina * data.por_pagina, data.total).toLocaleString('es-CL')} de {data.total.toLocaleString('es-CL')}
               </span>
-              <button type="button" className="inline-flex items-center gap-1 font-medium text-brand-700 hover:underline disabled:opacity-50" onClick={exportar} disabled={exportando}>
-                <Icon name="download" /> {exportando ? 'Exportando…' : 'Exportar a Excel'}
+              <button type="button" className={textoAccion} onClick={exportar} disabled={exportando} aria-busy={exportando || undefined}>
+                {exportando ? <Spinner className="size-4" /> : <Icon name="download" />} {exportando ? 'Exportando…' : 'Exportar a Excel'}
               </button>
-              <button type="button" className="inline-flex items-center gap-1 text-slate-500 hover:text-slate-800 hover:underline" onClick={async () => (await excel()).descargarPlantilla()}>
+              <button type="button" className={`${textoAccion} text-slate-600`} onClick={async () => (await excel()).descargarPlantilla()}>
                 <Icon name="file" /> Plantilla de importación
               </button>
             </div>
             <div className="flex items-center gap-2">
-              <Select aria-label="Filas por página" value={filtros.por_pagina} onChange={(e) => filtrar('por_pagina', Number(e.target.value))} className="w-auto py-1.5">
+              <Select aria-label="Filas por página" value={filtros.por_pagina} onChange={(e) => filtrar('por_pagina', Number(e.target.value))} className="w-auto">
                 {[25, 50, 100].map((n) => <option key={n} value={n}>{n} por página</option>)}
               </Select>
-              <Button variant="secondary" size="sm" aria-label="Página anterior" disabled={data.pagina <= 1} onClick={() => setFiltros((f) => ({ ...f, pagina: f.pagina - 1 }))}>
-                <Icon name="chevronLeft" />
-              </Button>
+              <IconButton variant="secondary" icon="chevronLeft" label="Página anterior" disabled={data.pagina <= 1} onClick={() => setFiltros((f) => ({ ...f, pagina: f.pagina - 1 }))} />
               <span className="tabular-nums">{data.pagina} / {totalPaginas}</span>
-              <Button variant="secondary" size="sm" aria-label="Página siguiente" disabled={data.pagina >= totalPaginas} onClick={() => setFiltros((f) => ({ ...f, pagina: f.pagina + 1 }))}>
-                <Icon name="chevronRight" />
-              </Button>
+              <IconButton variant="secondary" icon="chevronRight" label="Página siguiente" disabled={data.pagina >= totalPaginas} onClick={() => setFiltros((f) => ({ ...f, pagina: f.pagina + 1 }))} />
             </div>
           </div>
         )}
@@ -451,7 +433,7 @@ function Th({ col, filtros, onSort, children, className = '' }) {
   const activo = filtros.orden === col
   return (
     <th className={`px-4 py-3 ${className}`} aria-sort={activo ? (filtros.dir === 'asc' ? 'ascending' : 'descending') : undefined}>
-      <button type="button" onClick={() => onSort(col)} className={`inline-flex items-center gap-1 uppercase hover:text-slate-900 ${activo ? 'text-slate-900' : ''}`}>
+      <button type="button" onClick={() => onSort(col)} title={`Ordenar por ${String(children).toLowerCase()}`} className={`-mx-1.5 -my-2.5 inline-flex min-h-9 items-center gap-1 rounded px-1.5 py-2.5 uppercase hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-2 focus-visible:outline-brand-600 ${activo ? 'text-slate-900' : ''}`}>
         {children}
         <Icon name="sort" className={`size-3.5 ${activo ? 'opacity-100' : 'opacity-30'}`} />
       </button>

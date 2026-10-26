@@ -3,7 +3,7 @@ import * as api from '../../lib/api'
 import { formatCLP } from '../../lib/format'
 import { formatRut } from '../../lib/rut'
 import { esExitoPorDefecto, leerRespuesta, resumirCodigos } from '../../lib/respuestas'
-import { Badge, Button, Icon, Modal, Select, Spinner } from '../../components/ui'
+import { Badge, Button, Icon, Modal, Select, Spinner, textoAccion } from '../../components/ui'
 import { useToast } from '../../components/Toast'
 import { MEDIOS_COBRO } from './constants'
 
@@ -113,7 +113,7 @@ export default function RespuestaNomina({ nomina, onClose, onAplicada }) {
               <Icon name="file" className="size-5 text-slate-400" />
               <span className="font-medium text-slate-900">{archivo.name}</span>
               <span className="text-slate-500">· {lectura.formato} · {lectura.filas.length} filas</span>
-              <button type="button" className="font-medium text-brand-700 hover:underline" onClick={() => { setLectura(null); setCruce(null) }}>Cambiar archivo</button>
+              <button type="button" className={textoAccion} onClick={() => { setLectura(null); setCruce(null) }}>Cambiar archivo</button>
             </div>
 
             <section>

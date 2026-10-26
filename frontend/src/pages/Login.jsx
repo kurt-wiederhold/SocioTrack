@@ -48,8 +48,9 @@ export default function Login({ onLogin, aviso }) {
                   <button
                     type="button"
                     onClick={() => setVerClave((v) => !v)}
-                    className="absolute inset-y-0 right-0 grid w-10 place-items-center text-slate-400 hover:text-slate-700"
+                    className="absolute inset-y-0 right-0 grid w-10 place-items-center rounded-r-lg text-slate-400 hover:text-slate-700 focus-visible:outline-2 focus-visible:outline-brand-600 pointer-coarse:w-12"
                     aria-label={verClave ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                    title={verClave ? 'Ocultar contraseña' : 'Mostrar contraseña'}
                     aria-pressed={verClave}
                   >
                     <Icon name="eye" />

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import * as api from '../../lib/api'
 import { formatCLP } from '../../lib/format'
 import { formatRut } from '../../lib/rut'
-import { Badge, Button, ConfirmDialog, Field, Icon, Input, Modal, Spinner, Textarea } from '../../components/ui'
+import { Badge, Button, ConfirmDialog, Field, Icon, IconButton, Input, Modal, Spinner, Textarea, textoAccion } from '../../components/ui'
 import { useToast } from '../../components/Toast'
 
 export default function ProveedoresPage() {
@@ -88,9 +88,9 @@ export default function ProveedoresPage() {
                   {p.ultimo_mes > 0 && <Badge color="red">{p.ultimo_mes} último mes</Badge>}
                   {p.finalizados > 0 && <Badge color="green">{p.finalizados} 100% Fundación</Badge>}
                   <span className="ml-auto flex gap-1">
-                    <a href={`#/socios?proveedor_id=${p.id}`} className="px-2 py-1.5 text-sm font-medium text-brand-700">Socios</a>
-                    <button type="button" onClick={() => setEditando(p)} className="rounded-md p-1.5 text-slate-500" aria-label={`Editar ${p.nombre}`}><Icon name="edit" /></button>
-                    <button type="button" onClick={() => setEliminando(p)} className="rounded-md p-1.5 text-slate-500" aria-label={`Eliminar ${p.nombre}`}><Icon name="trash" /></button>
+                    <a href={`#/socios?proveedor_id=${p.id}`} className={`${textoAccion} px-2 text-sm`}>Ver socios</a>
+                    <IconButton icon="edit" label={`Editar ${p.nombre}`} onClick={() => setEditando(p)} />
+                    <IconButton icon="trash" tone="danger" label={`Eliminar ${p.nombre}`} onClick={() => setEliminando(p)} />
                   </span>
                 </div>
               </li>
@@ -135,9 +135,11 @@ export default function ProveedoresPage() {
                       </div>
                     </td>
                     <td className="whitespace-nowrap px-4 py-3 text-right">
-                      <a href={`#/socios?proveedor_id=${p.id}`} className="mr-2 text-sm font-medium text-brand-700 hover:underline">Socios</a>
-                      <button type="button" onClick={() => setEditando(p)} className="rounded-md p-1.5 text-slate-500 hover:bg-white hover:text-brand-700" aria-label={`Editar ${p.nombre}`}><Icon name="edit" /></button>
-                      <button type="button" onClick={() => setEliminando(p)} className="rounded-md p-1.5 text-slate-500 hover:bg-white hover:text-red-600" aria-label={`Eliminar ${p.nombre}`}><Icon name="trash" /></button>
+                      <div className="flex items-center justify-end gap-1">
+                        <a href={`#/socios?proveedor_id=${p.id}`} className={`${textoAccion} mr-2 text-sm`}>Ver socios</a>
+                        <IconButton icon="edit" label={`Editar ${p.nombre}`} onClick={() => setEditando(p)} />
+                        <IconButton icon="trash" tone="danger" label={`Eliminar ${p.nombre}`} onClick={() => setEliminando(p)} />
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -163,7 +165,9 @@ export default function ProveedoresPage() {
         title="Eliminar proveedor"
         danger
         loading={borrando}
-        confirmLabel="Eliminar"
+        confirmLabel="Eliminar proveedor"
+        sinConfirmar={eliminando?.socios > 0}
+        cancelLabel={eliminando?.socios > 0 ? 'Entendido' : 'Cancelar'}
         onClose={() => setEliminando(null)}
         onConfirm={eliminar}
         message={
@@ -230,7 +234,7 @@ export function ProveedorForm({ open, proveedor, onClose, onSaved, nombreInicial
       open={open}
       onClose={cerrar}
       title={proveedor ? 'Editar proveedor' : 'Nuevo proveedor'}
-      footer={<><Button variant="secondary" onClick={cerrar}>Cancelar</Button><Button type="submit" form="prov-form" loading={guardando}>Guardar</Button></>}
+      footer={<><Button variant="secondary" onClick={cerrar} disabled={guardando}>Cancelar</Button><Button type="submit" form="prov-form" loading={guardando}>{proveedor ? 'Guardar cambios' : 'Crear proveedor'}</Button></>}
     >
       <form id="prov-form" onSubmit={guardar} noValidate className="grid gap-4 sm:grid-cols-2">
         {errores.general && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 sm:col-span-2" role="alert">{errores.general}</p>}

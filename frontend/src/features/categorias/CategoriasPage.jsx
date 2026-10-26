@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import * as api from '../../lib/api'
 import { formatCLP, rangoTexto } from '../../lib/format'
-import { Badge, Button, ConfirmDialog, Field, Icon, Input, Modal, Spinner } from '../../components/ui'
+import { Badge, Button, ConfirmDialog, Field, Icon, IconButton, Input, Modal, Spinner, textoAccion } from '../../components/ui'
 import { useToast } from '../../components/Toast'
 
 const COLORES = { gray: 'Gris', brand: 'Morado', blue: 'Azul', green: 'Verde', yellow: 'Amarillo', red: 'Rojo' }
@@ -58,7 +58,7 @@ export default function CategoriasPage() {
           <p>
             <strong>{data.socios_sin_categoria} socio{data.socios_sin_categoria > 1 ? 's' : ''} activo{data.socios_sin_categoria > 1 ? 's' : ''}</strong> no
             calza{data.socios_sin_categoria > 1 ? 'n' : ''} en ninguna categoría. Revisa que los rangos cubran todos los montos.{' '}
-            <a href="#/socios?categoria_id=sin" className="font-medium underline">Ver socios</a>
+            <a href="#/socios?categoria_id=sin" className={`${textoAccion} text-amber-900 underline`}>Ver socios</a>
           </p>
         </div>
       )}
@@ -81,9 +81,9 @@ export default function CategoriasPage() {
                     <Badge color={c.color}>{c.nombre}</Badge>
                     <p className="mt-2 text-sm text-slate-600">{rangoTexto(c)}</p>
                   </div>
-                  <div className="flex gap-1">
-                    <button type="button" onClick={() => setEditando(c)} className="rounded-md p-1.5 text-slate-500 hover:bg-slate-100 hover:text-brand-700" aria-label={`Editar ${c.nombre}`}><Icon name="edit" /></button>
-                    <button type="button" onClick={() => setEliminando(c)} className="rounded-md p-1.5 text-slate-500 hover:bg-slate-100 hover:text-red-600" aria-label={`Eliminar ${c.nombre}`}><Icon name="trash" /></button>
+                  <div className="-mr-2 -mt-2 flex gap-1">
+                    <IconButton icon="edit" label={`Editar ${c.nombre}`} onClick={() => setEditando(c)} />
+                    <IconButton icon="trash" tone="danger" label={`Eliminar ${c.nombre}`} onClick={() => setEliminando(c)} />
                   </div>
                 </div>
                 <dl className="mt-4 grid grid-cols-2 gap-3">
@@ -102,7 +102,7 @@ export default function CategoriasPage() {
                   </div>
                   <span className="w-10 text-right text-xs tabular-nums text-slate-500">{pct}%</span>
                 </div>
-                <a href={`#/socios?categoria_id=${c.id}`} className="mt-4 text-sm font-medium text-brand-700 hover:underline">Ver socios →</a>
+                <a href={`#/socios?categoria_id=${c.id}`} className={`${textoAccion} mt-4 self-start text-sm`}>Ver socios →</a>
               </li>
             )
           })}
@@ -124,7 +124,7 @@ export default function CategoriasPage() {
         title="Eliminar categoría"
         danger
         loading={borrando}
-        confirmLabel="Eliminar"
+        confirmLabel="Eliminar categoría"
         onClose={() => setEliminando(null)}
         onConfirm={eliminar}
         message={<p>¿Eliminar la categoría <strong className="text-slate-900">{eliminando?.nombre}</strong>? Los socios no se borran: solo quedan sin categoría hasta que otro rango los cubra.</p>}
@@ -176,7 +176,7 @@ function CategoriaForm({ open, categoria, onClose, onSaved }) {
       onClose={cerrar}
       size="sm"
       title={categoria ? 'Editar categoría' : 'Nueva categoría'}
-      footer={<><Button variant="secondary" onClick={cerrar}>Cancelar</Button><Button type="submit" form="cat-form" loading={guardando}>Guardar</Button></>}
+      footer={<><Button variant="secondary" onClick={cerrar} disabled={guardando}>Cancelar</Button><Button type="submit" form="cat-form" loading={guardando}>{categoria ? 'Guardar cambios' : 'Crear categoría'}</Button></>}
     >
       <form id="cat-form" onSubmit={guardar} noValidate className="space-y-4">
         {errores.general && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">{errores.general}</p>}

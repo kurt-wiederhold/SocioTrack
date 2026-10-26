@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import * as api from '../../lib/api'
 import { formatCLP, formatFecha, formatMes, hoyISO, ultimoMesProveedor } from '../../lib/format'
 import { formatRut, normalizeRut } from '../../lib/rut'
-import { Badge, Button, Field, Icon, Input, Modal, Select, Textarea } from '../../components/ui'
+import { Badge, Button, Field, IconButton, Input, Modal, Select, Textarea } from '../../components/ui'
 import { ProveedorForm } from '../proveedores/ProveedoresPage'
 import { BANCOS, ESTADOS, MEDIOS } from './constants'
 
@@ -131,7 +131,7 @@ export default function SocioForm({ socio, open, onClose, onSaved, onDelete }) {
               Eliminar
             </Button>
           )}
-          <Button variant="secondary" onClick={cerrar}>Cancelar</Button>
+          <Button variant="secondary" onClick={cerrar} disabled={guardando}>Cancelar</Button>
           <Button type="submit" form="socio-form" loading={guardando}>
             {socio ? 'Guardar cambios' : 'Crear socio'}
           </Button>
@@ -232,9 +232,7 @@ export default function SocioForm({ socio, open, onClose, onSaved, onDelete }) {
                         .filter((x) => x.activo || String(x.id) === String(f.proveedor_id))
                         .map((x) => <option key={x.id} value={x.id}>{x.nombre}</option>)}
                     </Select>
-                    <Button variant="secondary" className="shrink-0" onClick={() => setCreandoProveedor(true)} aria-label="Crear proveedor nuevo">
-                      <Icon name="plus" />
-                    </Button>
+                    <IconButton variant="secondary" icon="plus" label="Crear proveedor nuevo" onClick={() => setCreandoProveedor(true)} className="size-10" />
                   </div>
                 )}
               </Field>

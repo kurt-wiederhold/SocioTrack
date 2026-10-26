@@ -4,7 +4,7 @@ import * as api from '../../lib/api'
 import { CAMPOS, construirFilas, descargarPlantilla, leerPlanilla } from '../../lib/excel'
 import { formatRut } from '../../lib/rut'
 import { formatCLP, formatFecha } from '../../lib/format'
-import { Badge, Button, Icon, Modal, Select, Spinner } from '../../components/ui'
+import { Badge, Button, Icon, Modal, Select, Spinner, textoAccion } from '../../components/ui'
 import { useToast } from '../../components/Toast'
 
 const MAX_MB = 10
@@ -263,7 +263,7 @@ export default function ImportarSocios({ open, onClose, onDone }) {
               ) : null,
             )}
             {revision.conteo.error > 0 && (
-              <button type="button" onClick={descargarErrores} className="ml-auto inline-flex items-center gap-1 text-sm font-medium text-brand-700 hover:underline">
+              <button type="button" onClick={descargarErrores} className={`${textoAccion} ml-auto text-sm`}>
                 <Icon name="download" /> Descargar errores
               </button>
             )}
@@ -330,7 +330,8 @@ function FiltroChip({ activo, color = 'gray', onClick, children }) {
       type="button"
       data-on={activo}
       onClick={onClick}
-      className={`rounded-full bg-white px-3 py-1 text-xs font-medium text-slate-700 ring-1 ring-slate-300 transition hover:bg-slate-50 data-[on=true]:ring-transparent ${colores[color]}`}
+      aria-pressed={activo}
+      className={`h-8 rounded-full bg-white px-3 text-xs font-medium text-slate-700 ring-1 ring-slate-300 transition hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-brand-600 pointer-coarse:h-10 data-[on=true]:ring-transparent ${colores[color]}`}
     >
       {children}
     </button>

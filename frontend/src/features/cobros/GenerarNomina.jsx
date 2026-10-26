@@ -57,7 +57,7 @@ export default function GenerarNomina({ periodo, medio, onClose, onCreada }) {
       description={`${MEDIOS_COBRO[medio].titulo} · ${formatPeriodo(periodo)}`}
       footer={
         <>
-          <Button variant="secondary" onClick={onClose}>Cancelar</Button>
+          <Button variant="secondary" onClick={onClose} disabled={guardando}>Cancelar</Button>
           <Button onClick={generar} loading={guardando} disabled={!prev || prev.registros === 0}>
             {prev ? `Generar y descargar (${prev.registros})` : 'Generar'}
           </Button>

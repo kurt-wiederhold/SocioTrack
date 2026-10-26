@@ -10,24 +10,63 @@ const VARIANTES = {
   'danger-ghost': 'text-red-600 hover:bg-red-50 hover:text-red-700',
 }
 
-export function Button({ variant = 'primary', size = 'md', loading, className, children, ...props }) {
+/*
+ * Protocolo de botones (aplica en todas las pestañas):
+ *  - Una sola acción principal (variant="primary") por pantalla o modal: el siguiente paso lógico.
+ *  - Texto = verbo + objeto ("Guardar cambios", "Generar nómina").
+ *  - Tamaño mínimo 36–40 px; 44 px en pantallas táctiles (pointer-coarse).
+ *  - Destructivas en rojo, siempre con confirmación y separadas de la principal.
+ *  - Mientras carga: spinner, aria-busy y deshabilitado (evita doble envío).
+ *  - Solo ícono => IconButton (nombre accesible + texto al pasar el mouse).
+ */
+export function Button({ variant = 'primary', size = 'md', loading, className, children, disabled, ...props }) {
   return (
     <button
       type="button"
+      {...props}
       className={cx(
-        'inline-flex items-center justify-center gap-2 rounded-lg font-medium transition focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-60',
-        size === 'sm' ? 'px-2.5 py-1.5 text-sm' : 'px-3.5 py-2 text-sm',
+        'inline-flex shrink-0 items-center justify-center gap-2 rounded-lg text-sm font-medium transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 disabled:cursor-not-allowed disabled:opacity-60 pointer-coarse:min-h-11',
+        size === 'sm' ? 'h-9 px-3' : 'h-10 px-4',
         VARIANTES[variant],
         className,
       )}
-      disabled={loading || props.disabled}
-      {...props}
+      disabled={loading || disabled}
+      aria-busy={loading || undefined}
     >
       {loading && <Spinner className="size-4" />}
       {children}
     </button>
   )
 }
+
+/** Botón de solo ícono: siempre con nombre accesible y texto al pasar el mouse. */
+export function IconButton({ icon, label, tone = 'default', variant = 'ghost', loading, disabled, className, ...props }) {
+  const tonos = {
+    default: 'text-slate-500 hover:text-brand-700',
+    danger: 'text-slate-500 hover:text-red-600 hover:bg-red-50',
+  }
+  return (
+    <button
+      type="button"
+      {...props}
+      aria-label={label}
+      title={label}
+      disabled={loading || disabled}
+      aria-busy={loading || undefined}
+      className={cx(
+        'inline-grid size-9 shrink-0 place-items-center rounded-lg transition focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brand-600 disabled:cursor-not-allowed disabled:opacity-40 pointer-coarse:size-11',
+        variant === 'secondary' ? 'bg-white text-slate-700 shadow-sm ring-1 ring-inset ring-slate-300 hover:bg-slate-50' : cx('hover:bg-slate-100', tonos[tone]),
+        className,
+      )}
+    >
+      {loading ? <Spinner className="size-4" /> : <Icon name={icon} className="size-5" />}
+    </button>
+  )
+}
+
+/** Enlace o botón de texto con área de toque cómoda (sin cambiar el diseño). */
+export const textoAccion =
+  'inline-flex items-center gap-1 rounded -my-2 py-2 font-medium text-brand-700 hover:underline focus-visible:outline-2 focus-visible:outline-brand-600 disabled:opacity-50 pointer-coarse:-my-3 pointer-coarse:py-3'
 
 export function Spinner({ className = 'size-5' }) {
   return (
@@ -39,7 +78,7 @@ export function Spinner({ className = 'size-5' }) {
 }
 
 const inputBase =
-  'block w-full rounded-lg border-0 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm ring-1 ring-inset placeholder:text-slate-400 focus:ring-2 focus:ring-inset disabled:bg-slate-50 disabled:text-slate-500'
+  'block min-h-10 w-full rounded-lg border-0 bg-white px-3 py-2 text-sm pointer-coarse:min-h-11 text-slate-900 shadow-sm ring-1 ring-inset placeholder:text-slate-400 focus:ring-2 focus:ring-inset disabled:bg-slate-50 disabled:text-slate-500'
 
 export function Field({ label, error, hint, required, children, className }) {
   const id = useId()
@@ -144,19 +183,10 @@ export function Modal({ open, onClose, title, description, children, footer, siz
               <h2 className="text-base font-semibold text-slate-900">{title}</h2>
               {description && <p className="mt-0.5 text-sm text-slate-500">{description}</p>}
             </div>
-            <button
-              type="button"
-              onClick={onClose}
-              className="-m-1.5 rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
-              aria-label="Cerrar"
-            >
-              <svg viewBox="0 0 20 20" fill="currentColor" className="size-5">
-                <path d="M6.28 5.22a.75.75 0 0 0-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 1 0 1.06 1.06L10 11.06l3.72 3.72a.75.75 0 1 0 1.06-1.06L11.06 10l3.72-3.72a.75.75 0 0 0-1.06-1.06L10 8.94 6.28 5.22Z" />
-              </svg>
-            </button>
+            <IconButton icon="x" label="Cerrar" onClick={onClose} className="-m-2" />
           </div>
           <div className="flex-1 overflow-y-auto px-5 py-5 sm:px-6">{children}</div>
-          {footer && <div className="flex flex-wrap justify-end gap-2 border-t border-slate-200 bg-slate-50 px-5 py-3 sm:px-6 rounded-b-2xl">{footer}</div>}
+          {footer && <div className="flex flex-col gap-2 rounded-b-2xl border-t border-slate-200 bg-slate-50 px-5 py-3 sm:flex-row sm:flex-wrap sm:justify-end sm:px-6 max-sm:[&>button]:w-full">{footer}</div>}
         </div>
       )}
     </dialog>
@@ -183,6 +213,7 @@ export function Icon({ name, className = 'size-4' }) {
     tag: 'M9.568 3H5.25A2.25 2.25 0 0 0 3 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 0 0 5.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 0 0 9.568 3ZM6 6h.008v.008H6V6Z',
     check: 'm4.5 12.75 6 6 9-13.5',
     eye: 'M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178ZM15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z',
+    x: 'M6 18 18 6M6 6l12 12',
     refresh: 'M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99',
   }
   return (
@@ -192,7 +223,7 @@ export function Icon({ name, className = 'size-4' }) {
   )
 }
 
-export function ConfirmDialog({ open, title, message, confirmLabel = 'Confirmar', danger, loading, onConfirm, onClose }) {
+export function ConfirmDialog({ open, title, message, confirmLabel = 'Confirmar', cancelLabel = 'Cancelar', danger, loading, onConfirm, onClose, sinConfirmar }) {
   return (
     <Modal
       open={open}
@@ -201,10 +232,12 @@ export function ConfirmDialog({ open, title, message, confirmLabel = 'Confirmar'
       size="sm"
       footer={
         <>
-          <Button variant="secondary" onClick={onClose}>Cancelar</Button>
-          <Button variant={danger ? 'danger' : 'primary'} loading={loading} onClick={onConfirm}>
-            {confirmLabel}
-          </Button>
+          <Button variant={sinConfirmar ? 'primary' : 'secondary'} onClick={onClose} disabled={loading}>{cancelLabel}</Button>
+          {!sinConfirmar && (
+            <Button variant={danger ? 'danger' : 'primary'} loading={loading} onClick={onConfirm}>
+              {confirmLabel}
+            </Button>
+          )}
         </>
       }
     >

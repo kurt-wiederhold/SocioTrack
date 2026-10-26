@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import * as api from '../../lib/api'
 import { formatCLP, formatFecha, formatPeriodo, periodoActual, sumarMes } from '../../lib/format'
-import { Badge, Button, ConfirmDialog, Icon, Spinner } from '../../components/ui'
+import { Badge, Button, ConfirmDialog, Icon, IconButton, Spinner, textoAccion } from '../../components/ui'
 import { useToast } from '../../components/Toast'
 import GenerarNomina from './GenerarNomina'
 import RespuestaNomina from './RespuestaNomina'
@@ -31,12 +31,17 @@ export default function CobrosPage() {
   }, [periodo])
   useEffect(() => { cargar() }, [cargar])
 
+  const [descargando, setDescargando] = useState(null)
   const descargar = async (n) => {
+    if (descargando) return
+    setDescargando(n.id)
     try {
       const nombre = await api.cobros.descargar(n.id)
       toast(`Descargado ${nombre}`)
     } catch (e) {
       toast(e.message, 'error')
+    } finally {
+      setDescargando(null)
     }
   }
 
@@ -63,12 +68,12 @@ export default function CobrosPage() {
         </div>
         <div className="flex flex-col items-start gap-1 sm:items-end">
           <div className="flex items-center gap-1 rounded-lg bg-white p-1 shadow-sm ring-1 ring-slate-200">
-            <Button variant="ghost" size="sm" aria-label="Mes anterior" onClick={() => setPeriodo((p) => sumarMes(p, -1))}><Icon name="chevronLeft" /></Button>
+            <IconButton icon="chevronLeft" label="Mes anterior" onClick={() => setPeriodo((p) => sumarMes(p, -1))} />
             <span className="w-40 text-center text-sm font-semibold text-slate-900" aria-live="polite">{mayuscula(formatPeriodo(periodo))}</span>
-            <Button variant="ghost" size="sm" aria-label="Mes siguiente" onClick={() => setPeriodo((p) => sumarMes(p, 1))}><Icon name="chevronRight" /></Button>
+            <IconButton icon="chevronRight" label="Mes siguiente" onClick={() => setPeriodo((p) => sumarMes(p, 1))} />
           </div>
           {periodo !== periodoActual() && (
-            <button type="button" onClick={() => setPeriodo(periodoActual())} className="text-xs font-medium text-brand-700 hover:underline">
+            <button type="button" onClick={() => setPeriodo(periodoActual())} className={`${textoAccion} text-xs`}>
               Volver al mes actual
             </button>
           )}
@@ -114,7 +119,7 @@ export default function CobrosPage() {
             ) : (
               <ul className="divide-y divide-slate-100">
                 {data.nominas.map((n) => (
-                  <FilaNomina key={n.id} n={n}
+                  <FilaNomina key={n.id} n={n} descargando={descargando === n.id}
                     onDescargar={() => descargar(n)}
                     onResponder={() => setRespondiendo(n)}
                     onVer={() => setViendo(n)}
@@ -177,7 +182,7 @@ function TarjetaMedio({ info, r, maxIntentos, onGenerar }) {
           <h2 className="font-semibold text-slate-900">{info.titulo}</h2>
           <p className="text-xs text-slate-500">{r.socios_activos} socios activos · {formatCLP(r.monto_esperado)} esperado</p>
         </div>
-        <Button size="sm" onClick={onGenerar} disabled={r.por_enviar === 0}>
+        <Button size="sm" variant={r.pendientes_respuesta > 0 ? 'secondary' : 'primary'} onClick={onGenerar} disabled={r.por_enviar === 0}>
           <Icon name="plus" /> Generar nómina
         </Button>
       </div>
@@ -210,7 +215,7 @@ function TarjetaMedio({ info, r, maxIntentos, onGenerar }) {
   )
 }
 
-function FilaNomina({ n, onDescargar, onResponder, onVer, onEliminar }) {
+function FilaNomina({ n, descargando, onDescargar, onResponder, onVer, onEliminar }) {
   const total = n.registros || 1
   return (
     <li className="flex flex-col gap-3 px-4 py-4 md:flex-row md:items-center">
@@ -239,11 +244,13 @@ function FilaNomina({ n, onDescargar, onResponder, onVer, onEliminar }) {
         </p>
       </div>
       <div className="flex flex-wrap gap-1 md:justify-end">
-        <Button variant="secondary" size="sm" onClick={onDescargar}><Icon name="download" /> Archivo</Button>
-        <Button variant={n.estado === 'generada' ? 'primary' : 'secondary'} size="sm" onClick={onResponder}><Icon name="upload" /> Respuesta</Button>
-        <Button variant="ghost" size="sm" onClick={onVer} aria-label={`Ver detalle del envío ${n.numero}`}><Icon name="eye" /></Button>
+        <Button variant="secondary" size="sm" onClick={onDescargar} loading={descargando}>{!descargando && <Icon name="download" />} Archivo</Button>
+        <Button variant={n.estado === 'generada' ? 'primary' : 'secondary'} size="sm" onClick={onResponder}>
+          <Icon name="upload" /> {n.estado === 'generada' ? 'Cargar respuesta' : 'Volver a cargar'}
+        </Button>
+        <IconButton icon="eye" label={`Ver detalle del envío ${n.numero}`} onClick={onVer} />
         {n.estado === 'generada' && (
-          <Button variant="ghost" size="sm" onClick={onEliminar} aria-label={`Eliminar envío ${n.numero}`}><Icon name="trash" /></Button>
+          <IconButton icon="trash" tone="danger" label={`Eliminar envío ${n.numero}`} onClick={onEliminar} />
         )}
       </div>
     </li>
