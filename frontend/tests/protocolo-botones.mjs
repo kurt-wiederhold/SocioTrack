@@ -5,12 +5,10 @@
 // Uso (con la app corriendo en http://localhost:5173 y Chrome instalado):
 //   node tests/protocolo-botones.mjs <correo> <contraseña> [ancho] [alto]
 // Para simular celular táctil: ancho 390, alto 844. Ruta de Chrome: variable CHROME_PATH.
-// Uso: node shot.mjs <steps.mjs> <outPrefix> [width] [height]
 import { spawn } from 'node:child_process'
 import { mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { pathToFileURL } from 'node:url'
 const [, , , , w = '1280', h = '860'] = process.argv
 const steps = (await import('./pasos-protocolo.mjs')).default
 const out = null
