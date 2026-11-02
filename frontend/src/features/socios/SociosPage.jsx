@@ -143,14 +143,14 @@ export default function SociosPage() {
         </div>
         {/* Todas las acciones con Excel juntas; la principal (Nuevo socio) al final. */}
         <div className="flex flex-wrap gap-2">
+          <Button variant="marca" onClick={async () => (await excel()).descargarPlantilla()} title="Planilla de ejemplo con las columnas que reconoce la importación">
+            <Icon name="file" /> Plantilla
+          </Button>
           {data?.total > 0 && (
             <Button variant="secondary" onClick={exportar} loading={exportando} title="Descarga los socios del listado (con los filtros aplicados)">
               {!exportando && <Icon name="download" />} {exportando ? 'Exportando…' : 'Exportar Excel'}
             </Button>
           )}
-          <Button variant="ghost" onClick={async () => (await excel()).descargarPlantilla()} title="Planilla de ejemplo con las columnas que reconoce la importación">
-            <Icon name="file" /> Plantilla
-          </Button>
           <Button variant="secondary" onClick={() => setImportando(true)}>
             <Icon name="upload" /> Importar Excel
           </Button>
