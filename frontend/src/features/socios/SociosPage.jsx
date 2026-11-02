@@ -2,7 +2,7 @@ import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import * as api from '../../lib/api'
 import { formatCLP, formatFecha, formatMes, rangoTexto } from '../../lib/format'
 import { formatRut } from '../../lib/rut'
-import { Badge, Button, ConfirmDialog, Icon, IconButton, Input, Select, Spinner, textoAccion } from '../../components/ui'
+import { Badge, Button, ConfirmDialog, Icon, IconButton, Input, Select, Spinner } from '../../components/ui'
 import { useToast } from '../../components/Toast'
 import { COBRO_MES, ESTADOS, MEDIOS, PROVEEDOR_ESTADOS } from './constants'
 import SocioForm from './SocioForm'
@@ -223,9 +223,9 @@ export default function SociosPage() {
             />
           </div>
           {hayFiltros && (
-            <button type="button" onClick={limpiarFiltros} className={`${textoAccion} self-start whitespace-nowrap px-1 text-sm sm:self-center`}>
-              Limpiar filtros
-            </button>
+            <Button variant="marca-suave" onClick={limpiarFiltros} className="self-start whitespace-nowrap sm:self-center">
+              <Icon name="x" /> Limpiar filtros
+            </Button>
           )}
           </div>
           <div className="grid grid-cols-2 gap-2 md:grid-cols-3 lg:grid-cols-5">

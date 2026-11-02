@@ -8,6 +8,8 @@ const VARIANTES = {
   danger: 'bg-red-600 text-white hover:bg-red-700 focus-visible:outline-red-600 shadow-sm',
   ghost: 'text-slate-600 hover:bg-slate-100 hover:text-slate-900',
   'danger-ghost': 'text-red-600 hover:bg-red-50 hover:text-red-700',
+  // Morado suave: acción secundaria con color de marca (sin competir con la principal).
+  'marca-suave': 'bg-brand-50 text-brand-700 ring-1 ring-inset ring-brand-200 hover:bg-brand-100 shadow-sm',
   // Amarillo de la marca Africa Dream: contorno y fondo suave; texto oscuro para que se lea (el amarillo como texto no tiene contraste).
   marca: 'bg-stripe-3/15 text-amber-900 ring-2 ring-inset ring-stripe-3 hover:bg-stripe-3/30 shadow-sm focus-visible:outline-amber-700',
 }
