@@ -160,7 +160,7 @@ export default function InformesPage() {
           </Select>
         </label>
         {rango === 'personal' && (
-          <div className="grid grid-cols-2 gap-3">
+          <div className="flex flex-wrap gap-3">
             <SelectorMes label="Desde" valor={personal[0]} primer={primer} onChange={(v) => setPersonal(([, h]) => [v, v > h ? v : h])} />
             <SelectorMes label="Hasta" valor={personal[1]} primer={primer} onChange={(v) => setPersonal(([d]) => [v < d ? v : d, v])} />
           </div>
@@ -262,13 +262,18 @@ function SelectorMes({ label, valor, primer, onChange }) {
   return (
     <fieldset>
       <legend className="mb-1 text-sm font-medium text-slate-700">{label}</legend>
+      {/* Anchos fijos que no se comprimen: "septiembre" (el mes más largo) se lee completo. */}
       <div className="flex gap-1">
-        <Select aria-label={`${label}: mes`} value={m} onChange={(e) => onChange(`${y}-${e.target.value}`)} className="w-32">
-          {MESES.map((n, i) => <option key={n} value={String(i + 1).padStart(2, '0')}>{n}</option>)}
-        </Select>
-        <Select aria-label={`${label}: año`} value={y} onChange={(e) => onChange(`${e.target.value}-${m}`)} className="w-24">
-          {anios.map((a) => <option key={a} value={a}>{a}</option>)}
-        </Select>
+        <div className="w-40 shrink-0">
+          <Select aria-label={`${label}: mes`} value={m} onChange={(e) => onChange(`${y}-${e.target.value}`)} className="capitalize">
+            {MESES.map((n, i) => <option key={n} value={String(i + 1).padStart(2, '0')}>{n}</option>)}
+          </Select>
+        </div>
+        <div className="w-24 shrink-0">
+          <Select aria-label={`${label}: año`} value={y} onChange={(e) => onChange(`${e.target.value}-${m}`)}>
+            {anios.map((a) => <option key={a} value={a}>{a}</option>)}
+          </Select>
+        </div>
       </div>
     </fieldset>
   )

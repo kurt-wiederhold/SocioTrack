@@ -10,11 +10,12 @@ const MARGEN = { arriba: 16, derecha: 16, abajo: 28, izquierda: 52 }
 
 function useAncho() {
   const ref = useRef(null)
-  const [ancho, setAncho] = useState(600)
+  // Se parte en 0 y se dibuja recién al medir el contenedor: así el gráfico nunca ensancha la página.
+  const [ancho, setAncho] = useState(0)
   useLayoutEffect(() => {
     const el = ref.current
     if (!el) return
-    const obs = new ResizeObserver(([e]) => setAncho(Math.max(260, Math.floor(e.contentRect.width))))
+    const obs = new ResizeObserver(([e]) => setAncho(Math.floor(e.contentRect.width)))
     obs.observe(el)
     return () => obs.disconnect()
   }, [])
@@ -54,7 +55,7 @@ export function Leyenda({ series }) {
 
 function Marco({ titulo, descripcion, series, children, vacio }) {
   return (
-    <figure className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 print:break-inside-avoid sm:p-5">
+    <figure className="min-w-0 rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 print:break-inside-avoid sm:p-5">
       <figcaption className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h3 className="text-sm font-semibold text-slate-900">{titulo}</h3>
@@ -141,8 +142,8 @@ export function GraficoBarras({ titulo, descripcion, datos, series, apilado = fa
 
   return (
     <Marco titulo={titulo} descripcion={descripcion} series={series} vacio={max === 0}>
-      <div ref={ref} className="relative" onMouseLeave={() => setHover(null)}>
-        <svg width={ancho} height={ALTO} role="img" aria-label={`${titulo}. Detalle en la tabla de resultados.`}>
+      <div ref={ref} className="relative min-h-[220px] w-full" onMouseLeave={() => setHover(null)}>
+        {ancho > 0 && <svg width={ancho} height={ALTO} role="img" aria-label={`${titulo}. Detalle en la tabla de resultados.`}>
           <Ejes ancho={ancho} tope={tope} paso={paso} formatoEje={formatoEje} />
           {datos.map((d, i) => {
             const x0 = MARGEN.izquierda + banda * i
@@ -184,7 +185,7 @@ export function GraficoBarras({ titulo, descripcion, datos, series, apilado = fa
           })}
           <line x1={MARGEN.izquierda} x2={ancho - MARGEN.derecha} y1={yDe(0)} y2={yDe(0)} stroke="var(--color-eje)" strokeWidth="1" />
           <EtiquetasX datos={datos} ancho={ancho} banda={banda} />
-        </svg>
+        </svg>}
         {hover !== null && (
           <Tooltip
             x={MARGEN.izquierda + banda * hover + banda / 2}
@@ -221,8 +222,8 @@ export function GraficoLinea({ titulo, descripcion, datos, campo, color, formato
 
   return (
     <Marco titulo={titulo} descripcion={descripcion} series={[]} vacio={!validos.length || (desdeCero && max === 0)}>
-      <div ref={ref} className="relative" onMouseLeave={() => setHover(null)}>
-        <svg width={ancho} height={ALTO} role="img" aria-label={`${titulo}. Detalle en la tabla de resultados.`}>
+      <div ref={ref} className="relative min-h-[220px] w-full" onMouseLeave={() => setHover(null)}>
+        {ancho > 0 && <svg width={ancho} height={ALTO} role="img" aria-label={`${titulo}. Detalle en la tabla de resultados.`}>
           <Ejes ancho={ancho} tope={tope} paso={paso} formatoEje={formatoEje} />
           <path d={area} fill={color} opacity="0.1" />
           <path d={linea} fill="none" stroke={color} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
@@ -245,7 +246,7 @@ export function GraficoLinea({ titulo, descripcion, datos, campo, color, formato
           ))}
           <line x1={MARGEN.izquierda} x2={ancho - MARGEN.derecha} y1={yDe(0)} y2={yDe(0)} stroke="var(--color-eje)" strokeWidth="1" />
           <EtiquetasX datos={datos} ancho={ancho} banda={banda} />
-        </svg>
+        </svg>}
         {hover !== null && (
           <Tooltip x={xDe(hover)} ancho={ancho} titulo={datos[hover].etiqueta}
             filas={[{ label: titulo, color, valor: datos[hover][campo] == null ? 'Sin datos' : formato(datos[hover][campo]) }]} />
