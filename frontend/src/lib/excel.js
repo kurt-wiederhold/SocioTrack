@@ -216,3 +216,54 @@ export function exportarSocios(socios) {
   const d = new Date()
   writeFile(wb, `socios_${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}.xlsx`)
 }
+
+/** Informe de socios y cobros: hojas Detalle, Totales y (si hay) Comparativo. */
+export function exportarInforme(data, metricas, comparativo) {
+  const tasa = (v) => (v == null ? '' : Math.round(v * 1000) / 10)
+  const detalle = data.periodos.map((p) => ({
+    Periodo: p.etiqueta,
+    Desde: p.desde,
+    Hasta: p.hasta,
+    Altas: p.altas,
+    Bajas: p.bajas,
+    'Crecimiento neto': p.neto,
+    'Socios al cierre': p.activos_cierre,
+    'Monto mensual comprometido': p.monto_comprometido,
+    'Cobros exitosos': p.socios_cobrados,
+    'Socios con respuesta de cobro': p.cargos_intentados,
+    'Esperando respuesta': p.cargos_pendientes,
+    'Monto cobrado': p.monto_cobrado,
+    'Cobrado PAC': p.monto_cobrado_pac,
+    'Cobrado PAT': p.monto_cobrado_pat,
+    'Tasa de cobro (%)': tasa(p.tasa_cobro),
+  }))
+  const totales = metricas.map((m) => ({
+    Indicador: m.label.replace(/^· /, ''),
+    Valor: m.key === 'tasa_cobro' ? tasa(data.totales[m.key]) : (data.totales[m.key] ?? ''),
+  }))
+  const wb = utils.book_new()
+  const hojaDetalle = utils.json_to_sheet(detalle)
+  hojaDetalle['!cols'] = Object.keys(detalle[0] ?? { Periodo: '' }).map((k) => ({ wch: Math.max(12, k.length + 2) }))
+  utils.book_append_sheet(wb, hojaDetalle, 'Detalle')
+  const hojaTotales = utils.json_to_sheet(totales)
+  hojaTotales['!cols'] = [{ wch: 32 }, { wch: 16 }]
+  utils.book_append_sheet(wb, hojaTotales, 'Totales')
+  if (comparativo?.a && comparativo?.b) {
+    const filas = metricas.map((m) => {
+      const a = comparativo.a[m.key] ?? null
+      const b = comparativo.b[m.key] ?? null
+      const esTasa = m.key === 'tasa_cobro'
+      return {
+        Indicador: m.label.replace(/^· /, ''),
+        [comparativo.etiquetaA]: esTasa ? tasa(a) : a,
+        [comparativo.etiquetaB]: esTasa ? tasa(b) : b,
+        'Diferencia (A - B)': a != null && b != null ? (esTasa ? tasa(a - b) : a - b) : '',
+        'Variación (%)': !esTasa && a != null && b ? Math.round(((a - b) / Math.abs(b)) * 1000) / 10 : '',
+      }
+    })
+    const hoja = utils.json_to_sheet(filas)
+    hoja['!cols'] = [{ wch: 32 }, { wch: 16 }, { wch: 16 }, { wch: 18 }, { wch: 14 }]
+    utils.book_append_sheet(wb, hoja, 'Comparativo')
+  }
+  writeFile(wb, `informe_${data.agrupacion}_${data.desde}_a_${data.hasta}.xlsx`)
+}

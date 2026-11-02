@@ -18,8 +18,26 @@
   --color-stripe-6: #f26b21;
 }
 
+:root {
+  /* Gráficos: paleta categórica validada (azul / naranja) y grilla discreta */
+  --color-serie-1: #2a78d6;
+  --color-serie-2: #eb6834;
+  --color-grilla: #eef0f3;
+  --color-eje: #cbd5e1;
+  --color-hover: #f1f5f9;
+}
+
 body {
   @apply bg-slate-50 text-slate-800 antialiased;
+}
+
+/* Impresión / PDF de informes: solo el contenido, sin navegación ni botones */
+@media print {
+  @page { margin: 12mm; }
+  body { background: white; }
+  header nav, header button, .brand-stripe { display: none !important; }
+  main { padding: 0 !important; max-width: none !important; }
+  figure, section { box-shadow: none !important; }
 }
 
 .brand-stripe {

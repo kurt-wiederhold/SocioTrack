@@ -73,6 +73,10 @@ const crud = (ruta) => ({
 export const categorias = crud('/categorias')
 export const proveedores = crud('/proveedores')
 
+export const informes = {
+  generar: (params) => request('GET', `/informes?${new URLSearchParams(clean(params))}`),
+}
+
 export const cobros = {
   resumen: (periodo) => request('GET', `/cobros?periodo=${encodeURIComponent(periodo)}`),
   generar: (data) => request('POST', '/cobros/nominas', data),

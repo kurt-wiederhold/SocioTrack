@@ -141,7 +141,16 @@ export default function SociosPage() {
           <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Socios</h1>
           <p className="mt-1 text-sm text-slate-500">Registro de socios recurrentes, su medio de pago y el proveedor que los captó.</p>
         </div>
+        {/* Todas las acciones con Excel juntas; la principal (Nuevo socio) al final. */}
         <div className="flex flex-wrap gap-2">
+          {data?.total > 0 && (
+            <Button variant="secondary" onClick={exportar} loading={exportando} title="Descarga los socios del listado (con los filtros aplicados)">
+              {!exportando && <Icon name="download" />} {exportando ? 'Exportando…' : 'Exportar Excel'}
+            </Button>
+          )}
+          <Button variant="ghost" onClick={async () => (await excel()).descargarPlantilla()} title="Planilla de ejemplo con las columnas que reconoce la importación">
+            <Icon name="file" /> Plantilla
+          </Button>
           <Button variant="secondary" onClick={() => setImportando(true)}>
             <Icon name="upload" /> Importar Excel
           </Button>
@@ -351,18 +360,10 @@ export default function SociosPage() {
 
         {data && data.total > 0 && (
           <div className="flex flex-col gap-3 border-t border-slate-200 px-4 py-3 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-              <span>
-                {((data.pagina - 1) * data.por_pagina + 1).toLocaleString('es-CL')}–
-                {Math.min(data.pagina * data.por_pagina, data.total).toLocaleString('es-CL')} de {data.total.toLocaleString('es-CL')}
-              </span>
-              <button type="button" className={textoAccion} onClick={exportar} disabled={exportando} aria-busy={exportando || undefined}>
-                {exportando ? <Spinner className="size-4" /> : <Icon name="download" />} {exportando ? 'Exportando…' : 'Exportar a Excel'}
-              </button>
-              <button type="button" className={`${textoAccion} text-slate-600`} onClick={async () => (await excel()).descargarPlantilla()}>
-                <Icon name="file" /> Plantilla de importación
-              </button>
-            </div>
+            <span>
+              {((data.pagina - 1) * data.por_pagina + 1).toLocaleString('es-CL')}–
+              {Math.min(data.pagina * data.por_pagina, data.total).toLocaleString('es-CL')} de {data.total.toLocaleString('es-CL')} socios
+            </span>
             <div className="flex items-center gap-2">
               <Select aria-label="Filas por página" value={filtros.por_pagina} onChange={(e) => filtrar('por_pagina', Number(e.target.value))} className="w-auto">
                 {[25, 50, 100].map((n) => <option key={n} value={n}>{n} por página</option>)}

@@ -7,11 +7,13 @@ import SociosPage from './features/socios/SociosPage'
 const CobrosPage = lazy(() => import('./features/cobros/CobrosPage'))
 const ProveedoresPage = lazy(() => import('./features/proveedores/ProveedoresPage'))
 const CategoriasPage = lazy(() => import('./features/categorias/CategoriasPage'))
+const InformesPage = lazy(() => import('./features/informes/InformesPage'))
 
 // Navegación simple por hash (#/socios, #/cobros...): no requiere configurar el servidor.
 const SECCIONES = [
   { id: 'socios', label: 'Socios', icon: 'users', Componente: SociosPage },
   { id: 'cobros', label: 'Cobros', icon: 'card', Componente: CobrosPage },
+  { id: 'informes', label: 'Informes', icon: 'chart', Componente: InformesPage },
   { id: 'proveedores', label: 'Proveedores', icon: 'building', Componente: ProveedoresPage },
   { id: 'categorias', label: 'Categorías', icon: 'tag', Componente: CategoriasPage },
 ]

@@ -13,6 +13,7 @@ use App\Config;
 use App\Controllers\AuthController;
 use App\Controllers\CatalogoController;
 use App\Controllers\CobroController;
+use App\Controllers\InformeController;
 use App\Controllers\SocioController;
 use App\Http;
 use App\HttpError;
@@ -66,6 +67,9 @@ try {
     $router->add('GET', '/cobros/nominas/{id}/archivo', $protegida([CobroController::class, 'archivo']));
     $router->add('POST', '/cobros/nominas/{id}/respuesta', $protegida([CobroController::class, 'respuesta']));
     $router->add('DELETE', '/cobros/nominas/{id}', $protegida([CobroController::class, 'eliminar']));
+
+    // Informes (altas, bajas, cobros por mes, trimestre, semestre o año)
+    $router->add('GET', '/informes', $protegida([InformeController::class, 'index']));
 
     $router->dispatch($method, $path);
 } catch (HttpError $e) {

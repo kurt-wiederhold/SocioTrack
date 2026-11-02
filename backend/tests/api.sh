@@ -210,6 +210,29 @@ req GET "/socios/$DANIEL/cobros" >/dev/null;       expect "historial de cobros d
 expect "historial de socio inexistente -> 404" 404 "$(req GET /socios/9999/cobros)"
 expect "eliminar socio conserva historial de cobros" 200 "$(req DELETE /socios/$ANA)"
 
+echo "Informes"
+expect "agrupación inválida -> 422" 422 "$(req GET '/informes?agrupacion=decada')"
+expect "desde posterior a hasta -> 422" 422 "$(req GET "/informes?agrupacion=mes&desde=2030-01&hasta=2026-01")"
+req GET "/informes?agrupacion=mes&desde=$P&hasta=$P" >/dev/null
+expect "altas del mes" 2 "$(json periodos.0.altas)"
+expect "bajas del mes" 1 "$(json periodos.0.bajas)"
+expect "crecimiento neto" 1 "$(json periodos.0.neto)"
+expect "activos al cierre" 2 "$(json periodos.0.activos_cierre)"
+expect "monto comprometido al cierre" 8000 "$(json periodos.0.monto_comprometido)"
+expect "socios cobrados" 1 "$(json periodos.0.socios_cobrados)"
+expect "monto cobrado PAT" 1000 "$(json periodos.0.monto_cobrado_pat)"
+expect "tasa de cobro" 0.5 "$(json periodos.0.tasa_cobro)"
+ANIOS=$(( $(date +%Y) - 2020 + 1 ))
+req GET "/informes?agrupacion=anio&desde=2020-01&hasta=$P" >/dev/null
+expect "un periodo por año" $ANIOS "$(php -r '$d=json_decode(file_get_contents($argv[1]),true); echo count($d["periodos"]);' "$TMP/body")"
+expect "alta del 2020 en el primer año" 1 "$(json periodos.0.altas)"
+expect "activos acumulados al cierre de 2020" 1 "$(json periodos.0.activos_cierre)"
+expect "totales del rango" 3 "$(json totales.altas)"
+req GET "/informes?agrupacion=trimestre&desde=$P&hasta=$P" >/dev/null
+expect "etiqueta de trimestre" "'T$(( ( $(date +%-m) - 1 ) / 3 + 1 )) $(date +%Y)'" "$(json periodos.0.etiqueta)"
+req GET "/informes?agrupacion=mes&desde=$P&hasta=2099-12" >/dev/null
+expect "no informa meses futuros" "'$P'" "$(json hasta)"
+
 echo "Eliminar y cerrar sesión"
 expect "eliminar -> 200" 200 "$(req DELETE /socios/$ID)"
 expect "eliminar de nuevo -> 404" 404 "$(req DELETE /socios/$ID)"

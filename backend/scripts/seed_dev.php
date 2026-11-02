@@ -13,6 +13,7 @@ if (PHP_SAPI !== 'cli') {
 require __DIR__ . '/../src/bootstrap.php';
 
 use App\Categorias;
+use App\Cobros;
 use App\Db;
 use App\Proveedores;
 use App\Rut;
@@ -67,6 +68,10 @@ for ($i = 0; $i < 60; $i++) {
         'monto' => $montos[array_rand($montos)],
         'estado' => $estado,
         'fecha_alta' => $alta,
+        // Las bajas se reparten entre el alta y hoy (para que los informes tengan sentido).
+        'fecha_baja' => $estado === 'baja'
+            ? date('Y-m-d', strtotime($alta) + (crc32($body) % max(1, time() - strtotime($alta))))
+            : null,
     ];
     if (mt_rand(0, 2) === 0) {
         $fila += [
@@ -90,4 +95,41 @@ for ($i = 0; $i < 60; $i++) {
         $creados++;
     }
 }
-echo "Listo: $creados socios de ejemplo. Usuario: " . DEMO_EMAIL . " (contraseña en scripts/seed_dev.php)\n";
+// Historial de cobros ficticio de los últimos 6 meses (envío original + 1 reintento por medio),
+// para que la pantalla Informes tenga datos. Solo rellena meses que todavía no tienen nóminas.
+$nominas = 0;
+mt_srand(7);
+for ($k = 6; $k >= 1; $k--) {
+    $periodo = date('Y-m', strtotime("first day of -$k months"));
+    if (Db::one('SELECT id FROM cobro_nominas WHERE periodo = ? LIMIT 1', [$periodo])) {
+        continue;
+    }
+    {
+        foreach (['PAC', 'PAT'] as $medio) {
+            for ($intento = 1; $intento <= 2; $intento++) {
+                try {
+                    $r = Cobros::generar([
+                        'periodo' => $periodo, 'medio_pago' => $medio, 'categoria_id' => null,
+                        'fecha_facturacion' => "$periodo-05", 'fecha_vencimiento' => "$periodo-15",
+                    ], false, null);
+                } catch (App\HttpError) {
+                    continue; // nadie pendiente para ese medio
+                }
+                $id = $r['nomina']['id'];
+                foreach (Cobros::detalles($id) as $d) {
+                    $ok = mt_rand(1, 100) <= ($intento === 1 ? 82 : 55);
+                    Db::run('UPDATE cobro_detalles SET estado = ?, codigo = ?, motivo = ?, fecha_cargo = ? WHERE id = ?', [
+                        $ok ? 'cobrado' : 'rechazado',
+                        $ok ? ($medio === 'PAT' ? 'APROBADA' : '000') : ($medio === 'PAT' ? 'RECHAZO' : '800'),
+                        $ok ? null : 'Ejemplo: fondos insuficientes',
+                        $ok ? "$periodo-15" : null,
+                        $d['id'],
+                    ]);
+                }
+                Db::run("UPDATE cobro_nominas SET estado = 'respondida', respondida_en = ? WHERE id = ?", [date('Y-m-d H:i:s'), $id]);
+                $nominas++;
+            }
+        }
+    }
+}
+echo "Listo: $creados socios y $nominas nóminas de ejemplo. Usuario: " . DEMO_EMAIL . " (contraseña en scripts/seed_dev.php)\n";
