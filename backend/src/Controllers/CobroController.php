@@ -47,7 +47,7 @@ final class CobroController
             $e['categoria_id'] = 'Categoría inválida.';
         }
         $fact = self::fecha($b['fecha_facturacion'] ?? null) ?? date('Y-m-d');
-        $venc = self::fecha($b['fecha_vencimiento'] ?? null) ?? date('Y-m-d', strtotime('+14 days'));
+        $venc = self::fecha($b['fecha_vencimiento'] ?? null) ?? date('Y-m-d', strtotime('+2 days'));
         if (!empty($b['fecha_facturacion']) && !self::fecha($b['fecha_facturacion'])) {
             $e['fecha_facturacion'] = 'Fecha inválida.';
         }
@@ -66,6 +66,7 @@ final class CobroController
             'categoria_id' => is_int($cat) ? $cat : null,
             'fecha_facturacion' => $fact,
             'fecha_vencimiento' => $venc,
+            'solo_reintentos' => ($b['solo_reintentos'] ?? false) === true,
         ], ($b['simular'] ?? true) !== false, Auth::userId());
         Http::json($r, isset($r['nomina']) ? 201 : 200);
     }

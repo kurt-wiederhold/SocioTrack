@@ -90,6 +90,7 @@ CREATE TABLE IF NOT EXISTS cobro_nominas (
     fecha_facturacion DATE         NOT NULL,
     fecha_vencimiento DATE         NOT NULL,
     estado            ENUM('generada','respondida') NOT NULL DEFAULT 'generada',
+    externa           TINYINT(1)   NOT NULL DEFAULT 0 COMMENT '1 = cargada desde un archivo, no generada aquí',
     creado_en         DATETIME     NOT NULL,
     creado_por        INT UNSIGNED NULL,
     respondida_en     DATETIME     NULL,
@@ -100,16 +101,58 @@ CREATE TABLE IF NOT EXISTS cobro_nominas (
     CONSTRAINT fk_nomina_respondida_por FOREIGN KEY (respondida_por) REFERENCES usuarios (id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- Cada archivo cargado en Consolidación. La huella evita cargar dos veces el mismo archivo.
+CREATE TABLE IF NOT EXISTS consolidacion_lotes (
+    id         INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    periodo    CHAR(7)      NOT NULL,
+    origen     ENUM('PAC','PAT','DO','CXC','TRF') NOT NULL,
+    tipo       ENUM('bajada','subida') NOT NULL DEFAULT 'bajada',
+    archivo    VARCHAR(190) NOT NULL,
+    huella     CHAR(64)     NOT NULL,
+    filas      INT UNSIGNED NOT NULL,
+    nomina_id  INT UNSIGNED NULL,
+    creado_en  DATETIME     NOT NULL,
+    creado_por INT UNSIGNED NULL,
+    UNIQUE KEY uq_lote_huella (huella),
+    INDEX idx_lote_periodo (periodo),
+    CONSTRAINT fk_lote_nomina FOREIGN KEY (nomina_id) REFERENCES cobro_nominas (id) ON DELETE SET NULL,
+    CONSTRAINT fk_lote_creado_por FOREIGN KEY (creado_por) REFERENCES usuarios (id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Donaciones de plataformas que cobran por su cuenta (Donar Online, Causaxcausa) y transferencias.
+-- Pueden no traer RUT: el donante se sigue por su "clave" (RUT o nombre normalizado).
+CREATE TABLE IF NOT EXISTS donaciones (
+    id       INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    lote_id  INT UNSIGNED NOT NULL,
+    periodo  CHAR(7)      NOT NULL,
+    origen   ENUM('DO','CXC','TRF') NOT NULL,
+    socio_id INT UNSIGNED NULL,
+    clave    VARCHAR(190) NOT NULL,
+    rut      VARCHAR(10)  NULL,
+    nombre   VARCHAR(150) NOT NULL,
+    monto    INT UNSIGNED NOT NULL,
+    estado   ENUM('cobrado','rechazado','pendiente') NOT NULL,
+    codigo   VARCHAR(20)  NULL,
+    motivo   VARCHAR(255) NULL,
+    fecha    DATE         NULL,
+    INDEX idx_donacion_periodo (periodo, origen, estado),
+    INDEX idx_donacion_clave (clave),
+    CONSTRAINT fk_donacion_lote FOREIGN KEY (lote_id) REFERENCES consolidacion_lotes (id) ON DELETE CASCADE,
+    CONSTRAINT fk_donacion_socio FOREIGN KEY (socio_id) REFERENCES socios (id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- Una fila por socio incluido en una nómina. Guarda una copia de RUT, nombre y monto
 -- para que el historial no cambie si después se edita o elimina el socio.
 CREATE TABLE IF NOT EXISTS cobro_detalles (
     id          INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     nomina_id   INT UNSIGNED NOT NULL,
+    lote_id     INT UNSIGNED NULL COMMENT 'Archivo cargado que informó este resultado',
     socio_id    INT UNSIGNED NULL,
     periodo     CHAR(7)      NOT NULL,
     rut         VARCHAR(10)  NOT NULL,
     nombre      VARCHAR(150) NOT NULL,
     monto       INT UNSIGNED NOT NULL,
+    banco_codigo CHAR(3)     NULL COMMENT 'Código del banco del socio (va en cada línea de la nómina PAC)',
     intento     TINYINT UNSIGNED NOT NULL COMMENT '1 = envío original, 2+ = reintentos',
     estado      ENUM('pendiente','cobrado','rechazado') NOT NULL DEFAULT 'pendiente',
     codigo      VARCHAR(20)  NULL COMMENT 'Código de respuesta del banco/Transbank',
@@ -118,6 +161,7 @@ CREATE TABLE IF NOT EXISTS cobro_detalles (
     UNIQUE KEY uq_detalle (nomina_id, socio_id),
     INDEX idx_detalle_socio_periodo (socio_id, periodo, estado),
     INDEX idx_detalle_periodo (periodo, estado),
+    CONSTRAINT fk_detalle_lote FOREIGN KEY (lote_id) REFERENCES consolidacion_lotes (id) ON DELETE SET NULL,
     CONSTRAINT fk_detalle_nomina FOREIGN KEY (nomina_id) REFERENCES cobro_nominas (id) ON DELETE CASCADE,
     CONSTRAINT fk_detalle_socio FOREIGN KEY (socio_id) REFERENCES socios (id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

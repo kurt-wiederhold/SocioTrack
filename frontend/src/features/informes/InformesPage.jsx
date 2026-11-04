@@ -73,6 +73,9 @@ const METRICAS = [
   { key: 'monto_cobrado', label: 'Monto cobrado', f: formatCLP },
   { key: 'monto_cobrado_pac', label: '· por PAC (banco)', f: formatCLP },
   { key: 'monto_cobrado_pat', label: '· por PAT (Transbank)', f: formatCLP },
+  { key: 'monto_cobrado_do', label: '· por Donar Online', f: formatCLP },
+  { key: 'monto_cobrado_cxc', label: '· por Causaxcausa', f: formatCLP },
+  { key: 'monto_cobrado_trf', label: '· por transferencias', f: formatCLP },
   { key: 'tasa_cobro', label: 'Tasa de cobro', f: pct },
 ]
 
@@ -205,7 +208,13 @@ export default function InformesPage() {
               titulo="Monto cobrado"
               descripcion="Cobros exitosos según las respuestas cargadas"
               datos={data.periodos}
-              series={[{ key: 'monto_cobrado_pac', label: 'PAC (banco)', color: AZUL }, { key: 'monto_cobrado_pat', label: 'PAT (Transbank)', color: NARANJA }]}
+              series={[
+                { key: 'monto_cobrado_pac', label: 'PAC (banco)', color: AZUL },
+                { key: 'monto_cobrado_pat', label: 'PAT (Transbank)', color: NARANJA },
+                { key: 'monto_cobrado_do', label: 'Donar Online', color: 'var(--color-serie-3)' },
+                { key: 'monto_cobrado_cxc', label: 'Causaxcausa', color: 'var(--color-serie-4)' },
+                { key: 'monto_cobrado_trf', label: 'Transferencias', color: 'var(--color-serie-5)' },
+              ].filter((s) => s.key.endsWith('pac') || s.key.endsWith('pat') || t[s.key] > 0)}
               apilado
               formato={formatCLP}
               formatoEje={clpEje}
@@ -235,7 +244,7 @@ export default function InformesPage() {
 
           <p className="text-xs text-slate-500">
             Notas: los socios suspendidos cuentan como socios (no son bajas). El monto comprometido usa el aporte actual de cada socio.
-            Lo cobrado proviene de las respuestas del banco y Transbank cargadas en Cobros.
+            Lo cobrado proviene de las respuestas cargadas en Cobros y Consolidación.
           </p>
         </div>
       )}

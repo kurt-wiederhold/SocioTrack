@@ -23,7 +23,7 @@ final class SocioController
         ]));
         $filtros = array_map(fn ($v) => is_string($v) ? $v : '', $filtros);
 
-        Http::json(SocioRepository::search($filtros) + ['resumen' => SocioRepository::resumen()]);
+        Http::json(SocioRepository::search($filtros) + ['resumen' => SocioRepository::resumen(), 'max_intentos' => \App\Cobros::maxIntentos()]);
     }
 
     /**

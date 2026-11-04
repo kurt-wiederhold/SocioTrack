@@ -135,6 +135,7 @@ export default function CobrosPage() {
         <GenerarNomina
           periodo={periodo}
           medio={generando}
+          hayReintentos={data?.resumen[generando]?.reintentos_disponibles > 0}
           onClose={() => setGenerando(null)}
           onCreada={(n) => {
             setGenerando(null)
@@ -186,6 +187,11 @@ function TarjetaMedio({ info, r, maxIntentos, onGenerar }) {
           <Icon name="plus" /> Generar nómina
         </Button>
       </div>
+      {r.sin_banco > 0 && (
+        <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900 ring-1 ring-amber-200">
+          {r.sin_banco} socio{r.sin_banco > 1 ? 's' : ''} sin banco reconocido: no pueden ir en la nómina hasta indicarlo en su ficha.
+        </p>
+      )}
       {r.por_enviar === 0 && <p className="mt-2 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600">{motivoSinEnvio(r)}</p>}
       <div className="mt-4">
         <div className="flex items-baseline justify-between">
@@ -224,6 +230,7 @@ function FilaNomina({ n, descargando, onDescargar, onResponder, onVer, onElimina
           <Badge color={n.medio_pago === 'PAC' ? 'blue' : 'brand'}>{n.medio_pago}</Badge>
           <span className="font-medium text-slate-900">Envío {n.numero}</span>
           {n.categoria && <Badge>{n.categoria}</Badge>}
+          {n.externa === 1 && <Badge color="blue">Cargada desde archivo</Badge>}
           {n.estado === 'respondida' ? <Badge color="green">Respondida</Badge> : <Badge color="yellow">Esperando respuesta</Badge>}
         </div>
         <p className="mt-1 text-xs text-slate-500">
@@ -249,7 +256,7 @@ function FilaNomina({ n, descargando, onDescargar, onResponder, onVer, onElimina
           <Icon name="upload" /> {n.estado === 'generada' ? 'Cargar respuesta' : 'Volver a cargar'}
         </Button>
         <IconButton icon="eye" label={`Ver detalle del envío ${n.numero}`} onClick={onVer} />
-        {n.estado === 'generada' && (
+        {n.estado === 'generada' && n.externa !== 1 && (
           <IconButton icon="trash" tone="danger" label={`Eliminar envío ${n.numero}`} onClick={onEliminar} />
         )}
       </div>

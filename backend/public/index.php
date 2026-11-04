@@ -13,6 +13,7 @@ use App\Config;
 use App\Controllers\AuthController;
 use App\Controllers\CatalogoController;
 use App\Controllers\CobroController;
+use App\Controllers\ConsolidacionController;
 use App\Controllers\InformeController;
 use App\Controllers\SocioController;
 use App\Http;
@@ -67,6 +68,11 @@ try {
     $router->add('GET', '/cobros/nominas/{id}/archivo', $protegida([CobroController::class, 'archivo']));
     $router->add('POST', '/cobros/nominas/{id}/respuesta', $protegida([CobroController::class, 'respuesta']));
     $router->add('DELETE', '/cobros/nominas/{id}', $protegida([CobroController::class, 'eliminar']));
+
+    // Consolidación de donaciones de todos los orígenes
+    $router->add('GET', '/consolidacion', $protegida([ConsolidacionController::class, 'index']));
+    $router->add('POST', '/consolidacion/importar', $protegida([ConsolidacionController::class, 'importar']));
+    $router->add('DELETE', '/consolidacion/lotes/{id}', $protegida([ConsolidacionController::class, 'eliminarLote']));
 
     // Informes (altas, bajas, cobros por mes, trimestre, semestre o año)
     $router->add('GET', '/informes', $protegida([InformeController::class, 'index']));

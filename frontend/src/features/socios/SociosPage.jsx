@@ -288,7 +288,7 @@ export default function SociosPage() {
                   </div>
                   <div className="mt-2 flex flex-wrap items-center gap-1.5">
                     <Badge color={ESTADOS[s.estado].color}>{ESTADOS[s.estado].label}</Badge>
-                    <CobroMesBadge s={s} max={MAX_INTENTOS} />
+                    <CobroMesBadge s={s} max={data.max_intentos} />
                     <Badge color={MEDIOS[s.medio_pago].color}>{s.medio_pago}</Badge>
                     {s.categoria && <Badge color={s.categoria_color}>{s.categoria}</Badge>}
                     {s.proveedor_estado && (
@@ -341,7 +341,7 @@ export default function SociosPage() {
                       {s.categoria && <Badge color={s.categoria_color} className="mt-0.5">{s.categoria}</Badge>}
                     </td>
                     <td className="px-4 py-3"><Badge color={ESTADOS[s.estado].color}>{ESTADOS[s.estado].label}</Badge></td>
-                    <td className="px-4 py-3"><CobroMesBadge s={s} max={MAX_INTENTOS} /></td>
+                    <td className="px-4 py-3"><CobroMesBadge s={s} max={data.max_intentos} /></td>
                     <td className="px-4 py-3"><ProveedorCell s={s} /></td>
                     <td className="whitespace-nowrap px-4 py-3 text-slate-600">{formatFecha(s.fecha_alta)}</td>
                     <td className="whitespace-nowrap px-4 py-3 text-right">
@@ -442,8 +442,6 @@ function Th({ col, filtros, onSort, children, className = '' }) {
   )
 }
 
-// Máximo de envíos por mes (1 + 4 reintentos); el valor real viene del servidor en Cobros.
-const MAX_INTENTOS = 5
 const mesCorto = new Intl.DateTimeFormat('es-CL', { month: 'short' }).format(new Date()).replace('.', '')
 
 /** ¿Se le cobró este mes? Responde la duda más común sin entrar a Cobros. */

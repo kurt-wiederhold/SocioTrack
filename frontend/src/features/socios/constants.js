@@ -17,7 +17,7 @@ export const PROVEEDOR_ESTADOS = {
 
 export const BANCOS = [
   'Banco de Chile', 'BancoEstado', 'Banco Santander', 'Banco BCI', 'Scotiabank', 'Banco Itaú',
-  'Banco BICE', 'Banco Security', 'Banco Falabella', 'Banco Ripley', 'Banco Consorcio', 'Banco Internacional', 'Coopeuch',
+  'Banco BICE', 'Banco Security', 'Banco Falabella', 'Banco Ripley', 'Banco Consorcio', 'Banco Internacional', 'HSBC', 'Coopeuch',
 ]
 
 /** Estado del cobro del mes actual de cada socio. */

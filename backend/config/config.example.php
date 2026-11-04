@@ -19,13 +19,15 @@ return [
         'max_import_rows' => 5000,
     ],
     'cobro' => [
-        // Reintentos de cobro por mes después del envío original (el documento indica 4).
-        'max_reintentos' => 4,
-        // Códigos del convenio PAC con el Banco de Chile (tomados del archivo de ejemplo de la Fundación).
+        // Reintentos por mes después del envío original. La Fundación sube las nóminas tres veces
+        // al mes (correo de nov. 2026), por eso 2. El documento inicial hablaba de 4: confirmar.
+        'max_reintentos' => 2,
+        // Convenio PAC con el Banco de Chile. El código de banco de cada línea sale del banco del socio.
         'pac' => [
-            'codigo_banco' => '012',
             'codigo_empresa' => '004',
             'codigo_convenio' => '065',
+            // Registro de totales del formato oficial. El archivo de nov. 2026 no lo trae: confirmar.
+            'incluir_totales' => true,
         ],
     ],
 ];

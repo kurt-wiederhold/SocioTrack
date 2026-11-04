@@ -4,9 +4,9 @@ import { formatCLP, formatPeriodo, hoyISO, rangoTexto, sumarDias } from '../../l
 import { Button, Field, Input, Modal, Select, Spinner } from '../../components/ui'
 import { MEDIOS_COBRO } from './constants'
 
-export default function GenerarNomina({ periodo, medio, onClose, onCreada }) {
+export default function GenerarNomina({ periodo, medio, hayReintentos, onClose, onCreada }) {
   const [categorias, setCategorias] = useState([])
-  const [f, setF] = useState({ categoria_id: '', fecha_facturacion: hoyISO(), fecha_vencimiento: sumarDias(hoyISO(), 14) })
+  const [f, setF] = useState({ categoria_id: '', fecha_facturacion: hoyISO(), fecha_vencimiento: sumarDias(hoyISO(), 2), solo_reintentos: !!hayReintentos })
   const [prev, setPrev] = useState(null)
   const [errores, setErrores] = useState({})
   const [guardando, setGuardando] = useState(false)
@@ -21,6 +21,7 @@ export default function GenerarNomina({ periodo, medio, onClose, onCreada }) {
     categoria_id: f.categoria_id ? Number(f.categoria_id) : null,
     fecha_facturacion: f.fecha_facturacion,
     fecha_vencimiento: f.fecha_vencimiento,
+    solo_reintentos: f.solo_reintentos,
     simular,
   })
 
@@ -34,7 +35,7 @@ export default function GenerarNomina({ periodo, medio, onClose, onCreada }) {
     )
     return () => { vigente = false }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [f.categoria_id, f.fecha_facturacion, f.fecha_vencimiento])
+  }, [f.categoria_id, f.fecha_facturacion, f.fecha_vencimiento, f.solo_reintentos])
 
   const generar = async () => {
     setGuardando(true)
@@ -74,6 +75,20 @@ export default function GenerarNomina({ periodo, medio, onClose, onCreada }) {
             </Select>
           )}
         </Field>
+        {hayReintentos && (
+          <label className="flex cursor-pointer items-start gap-3 rounded-xl p-3 ring-1 ring-slate-200">
+            <input
+              type="checkbox"
+              checked={f.solo_reintentos}
+              onChange={(e) => setF((x) => ({ ...x, solo_reintentos: e.target.checked }))}
+              className="mt-0.5 size-4 accent-brand-600"
+            />
+            <span>
+              <span className="block text-sm font-medium text-slate-700">Solo no cobrados (nómina depurada)</span>
+              <span className="block text-xs text-slate-500">Incluye únicamente a quienes ya se enviaron este mes y fueron rechazados; deja fuera a los socios que aún no se envían.</span>
+            </span>
+          </label>
+        )}
         {medio === 'PAC' && (
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Fecha de facturación" error={errores.fecha_facturacion}>
@@ -98,6 +113,11 @@ export default function GenerarNomina({ periodo, medio, onClose, onCreada }) {
             </dl>
           )}
         </div>
+        {prev?.sin_banco > 0 && (
+          <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900 ring-1 ring-amber-200" role="status">
+            {prev.sin_banco} socio{prev.sin_banco > 1 ? 's' : ''} sin banco reconocido no entra{prev.sin_banco > 1 ? 'n' : ''} en la nómina: cada línea lleva el código del banco. Indícalo en su ficha.
+          </p>
+        )}
         <p className="text-xs text-slate-500">
           Se descargará el {MEDIOS_COBRO[medio].envio}. Los socios incluidos quedan “esperando respuesta” y no se vuelven a incluir hasta cargar la respuesta.
         </p>

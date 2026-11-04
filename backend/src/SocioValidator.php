@@ -62,7 +62,11 @@ final class SocioValidator
             $e['medio_pago'] = $medio === '' ? 'El medio de pago es obligatorio.' : 'Debe ser PAC (banco) o PAT (tarjeta).';
         }
 
+        // Nombre o código ("037", "Santander") se guardan con el nombre oficial del catálogo.
         $d['banco'] = self::nullable(self::str($in['banco'] ?? null));
+        if ($d['banco'] !== null && ($codigoBanco = Bancos::codigo($d['banco']))) {
+            $d['banco'] = Bancos::nombre($codigoBanco);
+        }
         if ($d['banco'] !== null && mb_strlen($d['banco']) > 80) {
             $e['banco'] = 'Máximo 80 caracteres.';
         }

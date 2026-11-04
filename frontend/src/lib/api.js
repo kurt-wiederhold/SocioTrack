@@ -73,6 +73,12 @@ const crud = (ruta) => ({
 export const categorias = crud('/categorias')
 export const proveedores = crud('/proveedores')
 
+export const consolidacion = {
+  ver: (periodo) => request('GET', `/consolidacion?periodo=${encodeURIComponent(periodo)}`),
+  importar: (data) => request('POST', '/consolidacion/importar', data),
+  eliminarLote: (id) => request('DELETE', `/consolidacion/lotes/${id}`),
+}
+
 export const informes = {
   generar: (params) => request('GET', `/informes?${new URLSearchParams(clean(params))}`),
 }

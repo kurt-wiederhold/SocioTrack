@@ -5,6 +5,7 @@ declare(strict_types=1);
 
 require __DIR__ . '/../src/Rut.php';
 require __DIR__ . '/../src/SocioValidator.php';
+require_once __DIR__ . '/../src/Bancos.php';
 
 use App\Rut;
 use App\SocioValidator;
@@ -82,19 +83,26 @@ check('proveedor_id inválido', isset($e['proveedor_id']), true);
 
 echo "Formato nómina PAC (Banco de Chile) y PAT (Transbank)\n";
 require __DIR__ . '/../src/Formatos.php';
-$pac = ['codigo_banco' => '012', 'codigo_empresa' => '004', 'codigo_convenio' => '065'];
+$pac = ['codigo_empresa' => '004', 'codigo_convenio' => '065'];
 $det = [
-    ['rut' => '12345678-5', 'monto' => 6000, 'intento' => 1, 'nombre' => 'Ana'],
-    ['rut' => '9999999-3', 'monto' => 5000, 'intento' => 1, 'nombre' => 'Luis'],
+    ['rut' => '12345678-5', 'monto' => 6000, 'intento' => 1, 'nombre' => 'Ana', 'banco_codigo' => '012'],
+    ['rut' => '9999999-3', 'monto' => 5000, 'intento' => 1, 'nombre' => 'Luis', 'banco_codigo' => '037'],
 ];
 $lineas = explode("\r\n", rtrim(App\Formatos::nominaPac($det, '2019-12-20', '2020-01-03', $pac), "\r\n"));
 check('identificador de servicio con ceros', App\Formatos::identificadorServicio('9827237-K'), '009827237K');
 check('todas las líneas de 80 bytes', array_unique(array_map('strlen', $lineas)), [80]);
+check('cada línea lleva el banco del socio', substr($lineas[1], 0, 3), '037');
+check('sin registro de totales si se desactiva', count(explode("\r\n", rtrim(App\Formatos::nominaPac($det, '2019-12-20', '2020-01-03', $pac + ['incluir_totales' => false]), "\r\n"))), 2);
+require_once __DIR__ . '/../src/Bancos.php';
+check('banco por nombre', App\Bancos::codigo('Banco Santander'), '037');
+check('banco por alias sin tilde', App\Bancos::codigo('itau'), '039');
+check('banco por código corto', App\Bancos::codigo('1'), '001');
+check('banco desconocido', App\Bancos::codigo('Banco Inventado'), null);
 check('detalle según especificación',
     $lineas[0],
     '012004065D' . str_pad('0123456785', 22) . ' ' . str_repeat(' ', 10) . '00000600000' . '20191220' . '20200103' . '..........');
 // Mismo registro de totales que el archivo real enviado por la Fundación (8 cargos por $41.000).
-$ocho = array_fill(0, 8, ['rut' => '12345678-5', 'monto' => 0, 'intento' => 1]);
+$ocho = array_fill(0, 8, ['rut' => '12345678-5', 'monto' => 0, 'intento' => 1, 'banco_codigo' => '012']);
 $ocho[0]['monto'] = 41000;
 $total = explode("\r\n", rtrim(App\Formatos::nominaPac($ocho, '2019-12-20', '2020-01-03', $pac), "\r\n"))[8];
 check('registro de totales idéntico al del banco', $total, '001004065T' . str_repeat(' ', 33) . '00004100000000008N0..................');

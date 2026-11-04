@@ -34,6 +34,7 @@ function validarLocal(f, conProveedor) {
   if (f.nombre.trim().length < 2) e.nombre = 'El nombre es obligatorio.'
   if (!/^\d+$/.test(String(f.monto)) || Number(f.monto) < 1) e.monto = 'Ingresa un monto en pesos, sin puntos.'
   if (f.email && !/^\S+@\S+\.\S+$/.test(f.email)) e.email = 'Correo inválido.'
+  if (f.medio_pago === 'PAC' && !BANCOS.includes(f.banco)) e.banco = 'Elige el banco de la lista.'
   if (conProveedor) {
     if (!f.proveedor_id) e.proveedor_id = 'Elige el proveedor.'
     if (f.proveedor_monto === '' || Number(f.proveedor_monto) < 0) e.proveedor_monto = 'Indica el pago mensual.'
@@ -184,12 +185,13 @@ export default function SocioForm({ socio, open, onClose, onSaved, onDelete }) {
             {errores.medio_pago && <p className="mt-1 text-xs text-red-600">{errores.medio_pago}</p>}
           </div>
           {f.medio_pago === 'PAC' && (
-            <Field label="Banco" error={errores.banco}>
+            <Field label="Banco" required error={errores.banco} hint="Su código va en la nómina que se sube al banco.">
               {(p) => (
-                <>
-                  <Input id={p.id} list="lista-bancos" invalid={p.invalid} value={f.banco} onChange={set('banco')} placeholder="Ej: Banco de Chile" />
-                  <datalist id="lista-bancos">{BANCOS.map((b) => <option key={b} value={b} />)}</datalist>
-                </>
+                <Select id={p.id} invalid={p.invalid} aria-describedby={p.describedBy} value={f.banco} onChange={set('banco')}>
+                  <option value="">Elige el banco…</option>
+                  {f.banco && !BANCOS.includes(f.banco) && <option value={f.banco}>{f.banco} (no reconocido)</option>}
+                  {BANCOS.map((b) => <option key={b} value={b}>{b}</option>)}
+                </Select>
               )}
             </Field>
           )}

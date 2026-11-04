@@ -81,6 +81,7 @@ CREATE TABLE IF NOT EXISTS cobro_nominas (
     fecha_facturacion TEXT NOT NULL,
     fecha_vencimiento TEXT NOT NULL,
     estado            TEXT NOT NULL DEFAULT 'generada' CHECK (estado IN ('generada','respondida')),
+    externa           INTEGER NOT NULL DEFAULT 0,
     creado_en         TEXT NOT NULL,
     creado_por        INTEGER NULL REFERENCES usuarios (id) ON DELETE SET NULL,
     respondida_en     TEXT NULL,
@@ -88,14 +89,48 @@ CREATE TABLE IF NOT EXISTS cobro_nominas (
     UNIQUE (periodo, medio_pago, numero)
 );
 
+CREATE TABLE IF NOT EXISTS consolidacion_lotes (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    periodo    TEXT NOT NULL,
+    origen     TEXT NOT NULL CHECK (origen IN ('PAC','PAT','DO','CXC','TRF')),
+    tipo       TEXT NOT NULL DEFAULT 'bajada' CHECK (tipo IN ('bajada','subida')),
+    archivo    TEXT NOT NULL,
+    huella     TEXT NOT NULL UNIQUE,
+    filas      INTEGER NOT NULL,
+    nomina_id  INTEGER NULL REFERENCES cobro_nominas (id) ON DELETE SET NULL,
+    creado_en  TEXT NOT NULL,
+    creado_por INTEGER NULL REFERENCES usuarios (id) ON DELETE SET NULL
+);
+CREATE INDEX IF NOT EXISTS idx_lote_periodo ON consolidacion_lotes (periodo);
+
+CREATE TABLE IF NOT EXISTS donaciones (
+    id       INTEGER PRIMARY KEY AUTOINCREMENT,
+    lote_id  INTEGER NOT NULL REFERENCES consolidacion_lotes (id) ON DELETE CASCADE,
+    periodo  TEXT NOT NULL,
+    origen   TEXT NOT NULL CHECK (origen IN ('DO','CXC','TRF')),
+    socio_id INTEGER NULL REFERENCES socios (id) ON DELETE SET NULL,
+    clave    TEXT NOT NULL,
+    rut      TEXT NULL,
+    nombre   TEXT NOT NULL,
+    monto    INTEGER NOT NULL,
+    estado   TEXT NOT NULL CHECK (estado IN ('cobrado','rechazado','pendiente')),
+    codigo   TEXT NULL,
+    motivo   TEXT NULL,
+    fecha    TEXT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_donacion_periodo ON donaciones (periodo, origen, estado);
+CREATE INDEX IF NOT EXISTS idx_donacion_clave ON donaciones (clave);
+
 CREATE TABLE IF NOT EXISTS cobro_detalles (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     nomina_id   INTEGER NOT NULL REFERENCES cobro_nominas (id) ON DELETE CASCADE,
+    lote_id     INTEGER NULL REFERENCES consolidacion_lotes (id) ON DELETE SET NULL,
     socio_id    INTEGER NULL REFERENCES socios (id) ON DELETE SET NULL,
     periodo     TEXT NOT NULL,
     rut         TEXT NOT NULL,
     nombre      TEXT NOT NULL,
     monto       INTEGER NOT NULL,
+    banco_codigo TEXT NULL,
     intento     INTEGER NOT NULL,
     estado      TEXT NOT NULL DEFAULT 'pendiente' CHECK (estado IN ('pendiente','cobrado','rechazado')),
     codigo      TEXT NULL,

@@ -104,8 +104,8 @@ export default function RespuestaNomina({ nomina, onClose, onAplicada }) {
           >
             {cargando ? <Spinner className="size-8 text-brand-600" /> : <Icon name="upload" className="size-9 text-slate-400" />}
             <span className="mt-3 text-sm font-semibold text-slate-900">Arrastra el archivo de respuesta o haz clic para elegirlo</span>
-            <span className="mt-1 text-xs text-slate-500">{nomina.medio_pago === 'PAC' ? 'Excel de rendición (.xlsx, .xls, .csv)' : 'Archivo Transbank (.004, .csv, .txt)'}</span>
-            <input type="file" className="sr-only" accept={nomina.medio_pago === 'PAC' ? '.xlsx,.xls,.csv' : '.004,.csv,.txt'} onChange={(e) => { elegir(e.target.files[0]); e.target.value = '' }} />
+            <span className="mt-1 text-xs text-slate-500">{nomina.medio_pago === 'PAC' ? 'Excel de rendición (.xlsx, .xls, .csv)' : 'Archivo de Transbank (.004, .csv, .txt o sin extensión)'}</span>
+            <input type="file" className="sr-only" accept={nomina.medio_pago === 'PAC' ? '.xlsx,.xls,.csv' : undefined} onChange={(e) => { elegir(e.target.files[0]); e.target.value = '' }} />
           </label>
         ) : (
           <>

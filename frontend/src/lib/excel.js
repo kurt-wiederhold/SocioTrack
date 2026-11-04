@@ -30,7 +30,7 @@ const ALIAS = {
   email: ['email', 'correo', 'correoelectronico', 'mail', 'email1'],
   telefono: ['telefono', 'celular', 'fono', 'movil', 'telefonocelular'],
   medio_pago: ['mediodepago', 'mediopago', 'formadepago', 'tipodepago', 'medio', 'pacpat'],
-  banco: ['banco', 'institucion', 'bancoemisor'],
+  banco: ['banco', 'institucion', 'bancoemisor', 'codigobanco'],
   monto: ['monto', 'montomensual', 'aporte', 'aportemensual', 'montodecargo', 'montocargo', 'donacion'],
   estado: ['estado', 'estadosocio'],
   fecha_alta: ['fechaalta', 'fechadealta', 'fechaingreso', 'fechadeingreso', 'fechainscripcion', 'fecha'],
@@ -235,6 +235,9 @@ export function exportarInforme(data, metricas, comparativo) {
     'Monto cobrado': p.monto_cobrado,
     'Cobrado PAC': p.monto_cobrado_pac,
     'Cobrado PAT': p.monto_cobrado_pat,
+    'Cobrado Donar Online': p.monto_cobrado_do,
+    'Cobrado Causaxcausa': p.monto_cobrado_cxc,
+    'Cobrado transferencias': p.monto_cobrado_trf,
     'Tasa de cobro (%)': tasa(p.tasa_cobro),
   }))
   const totales = metricas.map((m) => ({
@@ -266,4 +269,56 @@ export function exportarInforme(data, metricas, comparativo) {
     utils.book_append_sheet(wb, hoja, 'Comparativo')
   }
   writeFile(wb, `informe_${data.agrupacion}_${data.desde}_a_${data.hasta}.xlsx`)
+}
+
+/** Planilla para que la Fundación registre las transferencias directas. */
+export function descargarPlantillaTransferencias() {
+  const ws = utils.aoa_to_sheet([
+    ['Nombre', 'Apellido', 'Monto', 'RUT (opcional)', 'Fecha (opcional)'],
+    ['María', 'Pérez Soto', 15000, '12.345.678-5', '05/11/2026'],
+    ['Juan', 'González', 5000, '', ''],
+  ])
+  ws['!cols'] = [{ wch: 18 }, { wch: 22 }, { wch: 12 }, { wch: 16 }, { wch: 16 }]
+  const wb = utils.book_new()
+  utils.book_append_sheet(wb, ws, 'Transferencias')
+  writeFile(wb, 'plantilla_transferencias.xlsx')
+}
+
+/** Consolidación del mes: resumen por origen y detalle por donante. */
+export function exportarConsolidado(data, origenes, estados) {
+  const resumen = data.por_origen.map((o) => ({
+    Origen: o.etiqueta,
+    Cobrados: o.cobrados,
+    'Monto cobrado': o.monto_cobrado,
+    Rechazados: o.rechazados,
+    'Monto no cobrado': o.monto_no_cobrado,
+    'Esperando respuesta': o.pendientes,
+    'Socios sin enviar': o.sin_enviar,
+    'Tasa de cobro (%)': o.tasa == null ? '' : Math.round(o.tasa * 1000) / 10,
+  }))
+  const detalle = data.filas.map((f) => ({
+    Donante: seguro(f.nombre),
+    RUT: f.rut ?? '',
+    Origen: origenes[f.origen].label,
+    Monto: f.monto,
+    Resultado: estados[f.estado].label,
+    'Envíos del mes': f.intentos,
+    Código: seguro(f.codigo ?? ''),
+    Detalle: seguro(f.motivo ?? ''),
+    'Fecha de cargo': f.fecha ?? '',
+  }))
+  const conclusiones = data.conclusiones.map((c) => ({ Conclusión: c.texto }))
+  const wb = utils.book_new()
+  const h1 = utils.json_to_sheet(resumen)
+  h1['!cols'] = Object.keys(resumen[0]).map((k) => ({ wch: Math.max(14, k.length + 2) }))
+  utils.book_append_sheet(wb, h1, 'Resumen')
+  const h2 = utils.json_to_sheet(detalle.length ? detalle : [{ Donante: '' }])
+  h2['!cols'] = [{ wch: 32 }, { wch: 12 }, { wch: 22 }, { wch: 10 }, { wch: 20 }, { wch: 8 }, { wch: 10 }, { wch: 50 }, { wch: 12 }]
+  utils.book_append_sheet(wb, h2, 'Donantes')
+  if (conclusiones.length) {
+    const h3 = utils.json_to_sheet(conclusiones)
+    h3['!cols'] = [{ wch: 110 }]
+    utils.book_append_sheet(wb, h3, 'Conclusiones')
+  }
+  writeFile(wb, `consolidacion_${data.periodo}.xlsx`)
 }

@@ -93,6 +93,19 @@ final class Informes
         ) as $r) {
             $cobros[$r['m']][$r['medio_pago']] = $r;
         }
+        // Plataformas (Donar Online, Causaxcausa) y transferencias.
+        foreach (Db::all(
+            "SELECT periodo AS m, origen AS medio_pago,
+                    COUNT(DISTINCT CASE WHEN estado <> 'pendiente' THEN clave END) AS intentados,
+                    COUNT(DISTINCT CASE WHEN estado = 'pendiente' THEN clave END) AS pendientes,
+                    COUNT(DISTINCT CASE WHEN estado = 'cobrado' THEN clave END) AS cobrados,
+                    COALESCE(SUM(CASE WHEN estado = 'cobrado' THEN monto ELSE 0 END), 0) AS monto
+             FROM donaciones WHERE periodo BETWEEN ? AND ?
+             GROUP BY periodo, origen",
+            [$inicio, $fin]
+        ) as $r) {
+            $cobros[$r['m']][$r['medio_pago']] = $r;
+        }
 
         // Recorrer mes a mes y agrupar.
         $activos = (int) $altasPrevias['n'] - (int) $bajasPrevias['n'];
@@ -112,13 +125,14 @@ final class Informes
                 'altas' => 0, 'bajas' => 0,
                 'socios_cobrados' => 0, 'cargos_intentados' => 0, 'cargos_pendientes' => 0,
                 'monto_cobrado' => 0, 'monto_cobrado_pac' => 0, 'monto_cobrado_pat' => 0,
+                'monto_cobrado_do' => 0, 'monto_cobrado_cxc' => 0, 'monto_cobrado_trf' => 0,
             ];
             $g['hasta'] = $m;
             $g['altas'] += (int) $a['n'];
             $g['bajas'] += (int) $b['n'];
             $g['activos_cierre'] = $activos;
             $g['monto_comprometido'] = $comprometido;
-            foreach (['PAC', 'PAT'] as $medio) {
+            foreach (['PAC', 'PAT', 'DO', 'CXC', 'TRF'] as $medio) {
                 $c = $cobros[$m][$medio] ?? null;
                 if ($c) {
                     $g['socios_cobrados'] += (int) $c['cobrados'];
@@ -157,6 +171,9 @@ final class Informes
                 'monto_cobrado' => $suma('monto_cobrado'),
                 'monto_cobrado_pac' => $suma('monto_cobrado_pac'),
                 'monto_cobrado_pat' => $suma('monto_cobrado_pat'),
+                'monto_cobrado_do' => $suma('monto_cobrado_do'),
+                'monto_cobrado_cxc' => $suma('monto_cobrado_cxc'),
+                'monto_cobrado_trf' => $suma('monto_cobrado_trf'),
                 'tasa_cobro' => $intentados > 0 ? round($suma('socios_cobrados') / $intentados, 4) : null,
             ],
         ];

@@ -9,7 +9,8 @@ namespace App;
  *   2. Descargar el archivo y enviarlo al banco / Transbank.
  *   3. Cargar la respuesta: se cruza por RUT y cada cargo queda cobrado o rechazado.
  *   4. Generar la siguiente nómina: incluye automáticamente a los rechazados como reintento,
- *      hasta 1 envío + N reintentos por mes (config cobro.max_reintentos, por defecto 4).
+ *      hasta 1 envío + N reintentos por mes (config cobro.max_reintentos, por defecto 2:
+ *      la Fundación sube las nóminas tres veces al mes).
  */
 final class Cobros
 {
@@ -22,15 +23,15 @@ final class Cobros
 
     public static function maxIntentos(): int
     {
-        return 1 + max(0, (int) Config::get('cobro.max_reintentos', 4));
+        return 1 + max(0, (int) Config::get('cobro.max_reintentos', 2));
     }
 
     public static function configPac(): array
     {
         return [
-            'codigo_banco' => (string) Config::get('cobro.pac.codigo_banco', '012'),
             'codigo_empresa' => (string) Config::get('cobro.pac.codigo_empresa', '004'),
             'codigo_convenio' => (string) Config::get('cobro.pac.codigo_convenio', '065'),
+            'incluir_totales' => (bool) Config::get('cobro.pac.incluir_totales', true),
         ];
     }
 
@@ -41,7 +42,7 @@ final class Cobros
      */
     public static function elegibles(string $periodo, string $medio, ?array $categoria = null): array
     {
-        $sql = "SELECT s.id, s.rut, s.nombre, s.monto,
+        $sql = "SELECT s.id, s.rut, s.nombre, s.monto, s.banco,
                        (SELECT COUNT(*) FROM cobro_detalles d WHERE d.socio_id = s.id AND d.periodo = ?) AS intentos_previos
                 FROM socios s
                 WHERE s.estado = 'activo' AND s.medio_pago = ? AND s.fecha_alta <= ?
@@ -63,7 +64,7 @@ final class Cobros
             $previos = (int) $r['intentos_previos'];
             if ($previos < $max) {
                 $out[] = ['socio_id' => (int) $r['id'], 'rut' => $r['rut'], 'nombre' => $r['nombre'],
-                    'monto' => (int) $r['monto'], 'intento' => $previos + 1];
+                    'monto' => (int) $r['monto'], 'intento' => $previos + 1, 'banco_codigo' => Bancos::codigo($r['banco'])];
             }
         }
         return $out;
@@ -97,7 +98,9 @@ final class Cobros
                 // maxIntentos va en el SQL como entero: en SQLite, COUNT(*) >= '5' (texto) siempre es falso.
                 [$medio, $periodo, $periodo]
             );
-            $elegibles = self::elegibles($periodo, $medio);
+            // Un socio PAC sin banco reconocido no puede ir en la nómina: cada línea lleva ese código.
+            $todos = self::elegibles($periodo, $medio);
+            $elegibles = array_filter($todos, fn ($e) => $medio !== 'PAC' || $e['banco_codigo'] !== null);
             $out[$medio] = [
                 'socios_activos' => (int) $activos['n'],
                 'monto_esperado' => (int) $activos['monto'],
@@ -108,6 +111,7 @@ final class Cobros
                 'monto_por_enviar' => array_sum(array_column($elegibles, 'monto')),
                 'reintentos_disponibles' => count(array_filter($elegibles, fn ($e) => $e['intento'] > 1)),
                 'agotados' => (int) $agotados['n'],
+                'sin_banco' => count($todos) - count($elegibles),
             ];
         }
         return $out;
@@ -176,7 +180,20 @@ final class Cobros
             $categoria = Categorias::find($p['categoria_id']) ?? throw new HttpError(422, 'La categoría no existe.');
         }
         $socios = self::elegibles($p['periodo'], $p['medio_pago'], $categoria);
+        $sinBanco = [];
+        if ($p['medio_pago'] === 'PAC') {
+            $sinBanco = array_filter($socios, fn ($s) => $s['banco_codigo'] === null);
+            $socios = array_filter($socios, fn ($s) => $s['banco_codigo'] !== null);
+        }
+        // "Solo no cobrados": únicamente quienes ya se enviaron este mes y fueron rechazados.
+        $nuevos = count(array_filter($socios, fn ($s) => $s['intento'] === 1));
+        if (!empty($p['solo_reintentos'])) {
+            $socios = array_filter($socios, fn ($s) => $s['intento'] > 1);
+        }
+        $socios = array_values($socios);
         $resumen = [
+            'sin_banco' => count($sinBanco),
+            'nuevos_excluidos' => !empty($p['solo_reintentos']) ? $nuevos : 0,
             'registros' => count($socios),
             'monto' => array_sum(array_column($socios, 'monto')),
             'reintentos' => count(array_filter($socios, fn ($s) => $s['intento'] > 1)),
@@ -203,11 +220,11 @@ final class Cobros
             );
             $id = (int) $pdo->lastInsertId();
             $stmt = $pdo->prepare(
-                "INSERT INTO cobro_detalles (nomina_id, socio_id, periodo, rut, nombre, monto, intento, estado)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, 'pendiente')"
+                "INSERT INTO cobro_detalles (nomina_id, socio_id, periodo, rut, nombre, monto, banco_codigo, intento, estado)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pendiente')"
             );
             foreach ($socios as $s) {
-                $stmt->execute([$id, $s['socio_id'], $p['periodo'], $s['rut'], $s['nombre'], $s['monto'], $s['intento']]);
+                $stmt->execute([$id, $s['socio_id'], $p['periodo'], $s['rut'], $s['nombre'], $s['monto'], $s['banco_codigo'], $s['intento']]);
             }
             $pdo->commit();
         } catch (\Throwable $e) {
@@ -225,6 +242,24 @@ final class Cobros
     {
         $n = Db::one('SELECT * FROM cobro_nominas WHERE id = ?', [$nominaId]) ?? throw new HttpError(404, 'Nómina no encontrada.');
         $detalles = self::detalles($nominaId);
+        if ($n['medio_pago'] === 'PAC') {
+            // Nóminas antiguas no guardaron el banco: se toma del socio. Sin banco no hay línea válida.
+            $faltan = [];
+            foreach ($detalles as &$d) {
+                if (empty($d['banco_codigo'])) {
+                    $s = $d['socio_id'] ? Db::one('SELECT banco FROM socios WHERE id = ?', [$d['socio_id']]) : null;
+                    $d['banco_codigo'] = $s ? Bancos::codigo($s['banco']) : null;
+                }
+                if (empty($d['banco_codigo'])) {
+                    $faltan[] = $d['nombre'];
+                }
+            }
+            unset($d);
+            if ($faltan) {
+                throw new HttpError(409, 'No se puede generar el archivo: falta el banco de ' . implode(', ', array_slice($faltan, 0, 5))
+                    . (count($faltan) > 5 ? ' y ' . (count($faltan) - 5) . ' más' : '') . '.');
+            }
+        }
         $base = "{$n['medio_pago']}_{$n['periodo']}_envio{$n['numero']}";
         if ($n['medio_pago'] === 'PAC') {
             return ["$base.txt", Formatos::nominaPac($detalles, $n['fecha_facturacion'], $n['fecha_vencimiento'], self::configPac())];
@@ -338,7 +373,10 @@ final class Cobros
     /** Solo se puede eliminar una nómina que aún no tiene respuestas cargadas. */
     public static function eliminar(int $id): void
     {
-        $n = Db::one('SELECT estado FROM cobro_nominas WHERE id = ?', [$id]) ?? throw new HttpError(404, 'Nómina no encontrada.');
+        $n = Db::one('SELECT estado, externa FROM cobro_nominas WHERE id = ?', [$id]) ?? throw new HttpError(404, 'Nómina no encontrada.');
+        if ((int) $n['externa'] === 1) {
+            throw new HttpError(409, 'Esta nómina viene de un archivo cargado: elimínala desde Consolidación.');
+        }
         $respondidos = (int) Db::one("SELECT COUNT(*) AS n FROM cobro_detalles WHERE nomina_id = ? AND estado <> 'pendiente'", [$id])['n'];
         if ($n['estado'] !== 'generada' || $respondidos > 0) {
             throw new HttpError(409, 'No se puede eliminar: la nómina ya tiene respuestas cargadas.');
@@ -354,7 +392,7 @@ final class Cobros
 
     private static function presentNomina(array $r): array
     {
-        foreach (['id', 'numero', 'categoria_id', 'creado_por', 'respondida_por', 'registros', 'monto_total',
+        foreach (['id', 'numero', 'externa', 'categoria_id', 'creado_por', 'respondida_por', 'registros', 'monto_total',
             'cobrados', 'monto_cobrado', 'rechazados', 'pendientes', 'reintentos'] as $k) {
             $r[$k] = $r[$k] === null ? null : (int) $r[$k];
         }

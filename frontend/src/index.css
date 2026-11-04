@@ -22,6 +22,9 @@
   /* Gráficos: paleta categórica validada (azul / naranja) y grilla discreta */
   --color-serie-1: #2a78d6;
   --color-serie-2: #eb6834;
+  --color-serie-3: #1baf7a;
+  --color-serie-4: #eda100;
+  --color-serie-5: #e87ba4;
   --color-grilla: #eef0f3;
   --color-eje: #cbd5e1;
   --color-hover: #f1f5f9;

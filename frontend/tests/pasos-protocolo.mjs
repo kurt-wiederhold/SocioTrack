@@ -35,6 +35,8 @@ export default [
   { js: abrir('Importar Excel'), wait: 1200 }, { js: check('Socios › Importar') }, { js: cerrar },
   { js: `location.hash='#/cobros'`, wait: 1800 }, { js: check('Cobros') },
   { js: abrir('Generar nómina', 1), wait: 1500 }, { js: check('Cobros › Generar nómina') }, { js: cerrar },
+  { js: `location.hash='#/consolidacion'`, wait: 2000 }, { js: check('Consolidación') },
+  { js: abrir('Cargar archivo'), wait: 800 }, { js: check('Consolidación › Cargar archivo') }, { js: cerrar },
   { js: `location.hash='#/informes'`, wait: 2500 }, { js: check('Informes') },
   { js: `window.scrollTo(0, 99999)`, wait: 1200 }, { js: check('Informes (comparativo)') }, { js: `window.scrollTo(0, 0)`, wait: 200 },
   { js: `location.hash='#/proveedores'`, wait: 1500 }, { js: check('Proveedores') },

@@ -24,7 +24,7 @@ EOF
   php -r '
     require "src/bootstrap.php";
     $pdo = App\Db::pdo();
-    $pdo->exec("SET FOREIGN_KEY_CHECKS=0; DROP TABLE IF EXISTS cobro_detalles, cobro_nominas, socios, proveedores, categorias, login_intentos, usuarios; SET FOREIGN_KEY_CHECKS=1;");
+    $pdo->exec("SET FOREIGN_KEY_CHECKS=0; DROP TABLE IF EXISTS donaciones, cobro_detalles, consolidacion_lotes, cobro_nominas, socios, proveedores, categorias, login_intentos, usuarios; SET FOREIGN_KEY_CHECKS=1;");
     $pdo->exec(file_get_contents("database/schema.mysql.sql"));'
 else
   echo "Motor: SQLite"
@@ -148,7 +148,7 @@ PROV2=$(json dato.id)
 expect "RUT de proveedor inválido -> 422" 422 "$(req POST /proveedores '{"nombre":"Malo","rut":"1-2"}')"
 expect "proveedor sin socios se puede eliminar -> 200" 200 "$(req DELETE /proveedores/$PROV)"
 expect "socio con proveedor inexistente -> 422" 422 "$(req POST /socios '{"rut":"12345678-5","nombre":"Ana","medio_pago":"PAC","monto":6000,"proveedor_id":9999,"proveedor_monto":1000,"proveedor_cuotas":6}')"
-expect "socio con proveedor (fin de pago ya pasó) -> 201" 201 "$(req POST /socios "{\"rut\":\"12345678-5\",\"nombre\":\"Ana Prueba\",\"medio_pago\":\"PAC\",\"monto\":6000,\"fecha_alta\":\"2020-01-01\",\"proveedor_id\":$PROV2,\"proveedor_monto\":2500,\"proveedor_cuotas\":6,\"proveedor_inicio\":\"2020-01-01\"}")"
+expect "socio con proveedor (fin de pago ya pasó) -> 201" 201 "$(req POST /socios "{\"rut\":\"12345678-5\",\"nombre\":\"Ana Prueba\",\"medio_pago\":\"PAC\",\"banco\":\"BancoEstado\",\"monto\":6000,\"fecha_alta\":\"2020-01-01\",\"proveedor_id\":$PROV2,\"proveedor_monto\":2500,\"proveedor_cuotas\":6,\"proveedor_inicio\":\"2020-01-01\"}")"
 ANA=$(json dato.id)
 expect "alerta: socio pasó 100% a la Fundación" true "$(json dato.proveedor_por_revisar)"
 expect "eliminar proveedor con socios -> 409" 409 "$(req DELETE /proveedores/$PROV2)"
@@ -182,14 +182,14 @@ expect "resumen PAT: cobrados" 1 "$(json resumen.PAT.cobrados)"
 expect "resumen PAT: monto cobrado" 1000 "$(json resumen.PAT.monto_cobrado)"
 expect "resumen PAT: rechazado listo para reintento" 1 "$(json resumen.PAT.reintentos_disponibles)"
 expect "no se puede eliminar nómina respondida -> 409" 409 "$(req DELETE /cobros/nominas/$NOM)"
-for intento in 2 3 4 5; do
+for intento in 2 3; do
   req POST /cobros/nominas "{\"periodo\":\"$P\",\"medio_pago\":\"PAT\",\"simular\":false}" >/dev/null
   N=$(json nomina.id); R=$(json reintentos)
   req POST /cobros/nominas/$N/respuesta '{"simular":false,"filas":[{"rut":"16886595-3","estado":"rechazado"}]}' >/dev/null
 done
-expect "último reintento era el intento 5" 1 "$R"
+expect "último reintento era el intento 3" 1 "$R"
 req GET "/cobros?periodo=$P" >/dev/null
-expect "tras 1 envío + 4 reintentos queda agotado" 1 "$(json resumen.PAT.agotados)"
+expect "tras 3 envíos del mes queda agotado" 1 "$(json resumen.PAT.agotados)"
 expect "agotado ya no entra en nuevas nóminas" 0 "$(json resumen.PAT.por_enviar)"
 expect "generar nómina PAC -> 201" 201 "$(req POST /cobros/nominas "{\"periodo\":\"$P\",\"medio_pago\":\"PAC\",\"fecha_facturacion\":\"2026-10-20\",\"fecha_vencimiento\":\"2026-11-03\",\"simular\":false}")"
 NPAC=$(json nomina.id)
@@ -204,7 +204,7 @@ req GET '/socios?cobro_mes=cobrado' >/dev/null;    expect "filtro cobro del mes:
 expect "estado del cobro en el listado" "'cobrado'" "$(json datos.0.cobro_mes)"
 DANIEL=$(json datos.0.id)
 req GET '/socios?cobro_mes=rechazado' >/dev/null;  expect "filtro cobro del mes: rechazado" 1 "$(json total)"
-expect "intentos del mes en el listado" 5 "$(json datos.0.cobro_mes_intentos)"
+expect "intentos del mes en el listado" 3 "$(json datos.0.cobro_mes_intentos)"
 req GET '/socios?cobro_mes=sin_enviar' >/dev/null; expect "filtro cobro del mes: sin enviar" 1 "$(json total)"
 req GET "/socios/$DANIEL/cobros" >/dev/null;       expect "historial de cobros del socio" "'cobrado'" "$(json datos.0.estado)"
 expect "historial de socio inexistente -> 404" 404 "$(req GET /socios/9999/cobros)"
@@ -232,6 +232,65 @@ req GET "/informes?agrupacion=trimestre&desde=$P&hasta=$P" >/dev/null
 expect "etiqueta de trimestre" "'T$(( ( $(date +%-m) - 1 ) / 3 + 1 )) $(date +%Y)'" "$(json periodos.0.etiqueta)"
 req GET "/informes?agrupacion=mes&desde=$P&hasta=2099-12" >/dev/null
 expect "no informa meses futuros" "'$P'" "$(json hasta)"
+
+echo "Consolidación"
+PC=2026-03
+FILAS_DO='{"periodo":"2026-03","origen":"DO","archivo":"do.xlsx","simular":true,"filas":[
+ {"nombre":"Daniela Barrera","monto":500,"estado":"cobrado","codigo":"Cobrada"},
+ {"nombre":"Donante Desconocido","monto":700,"estado":"rechazado","codigo":"Rechazada","motivo":"Tarjeta con restricciones"},
+ {"nombre":"Sin Monto","estado":"cobrado"}
+]}'
+expect "origen inválido -> 422" 422 "$(req POST /consolidacion/importar '{"periodo":"2026-03","origen":"XX","filas":[{"nombre":"A","monto":1,"estado":"cobrado"}]}')"
+expect "periodo inválido -> 422" 422 "$(req POST /consolidacion/importar '{"periodo":"2026-13","origen":"DO","filas":[{"nombre":"A","monto":1,"estado":"cobrado"}]}')"
+expect "simular Donar Online -> 200" 200 "$(req POST /consolidacion/importar "$FILAS_DO")"
+expect "cuenta cobrados" 1 "$(json conteo.cobrados)"
+expect "fila sin monto queda observada" 1 "$(json conteo.invalidas)"
+expect "vincula por nombre con un socio" 1 "$(json conteo.vinculados)"
+expect "sin vínculo cuando no calza" 1 "$(json conteo.sin_vincular)"
+expect "simular no guarda" 0 "$(req GET "/consolidacion?periodo=$PC" >/dev/null; json totales.cobrados)"
+APLICAR_DO="${FILAS_DO/\"simular\":true/\"simular\":false}"
+expect "aplicar Donar Online -> 200" 200 "$(req POST /consolidacion/importar "$APLICAR_DO")"
+LOTE_DO=$(json lote_id)
+expect "mismo archivo dos veces -> 409" 409 "$(req POST /consolidacion/importar "$APLICAR_DO")"
+expect "reemplazar lo carga de nuevo -> 200" 200 "$(req POST /consolidacion/importar "${APLICAR_DO/\"simular\":false/\"simular\":false,\"reemplazar\":true}")"
+LOTE_DO=$(json lote_id)
+expect "transferencias -> 200" 200 "$(req POST /consolidacion/importar '{"periodo":"2026-03","origen":"TRF","archivo":"t.xlsx","simular":false,"filas":[{"nombre":"Rosa Transfiere","monto":9000,"estado":"cobrado"}]}')"
+BAJADA='{"periodo":"2026-03","origen":"PAC","archivo":"rendicion.xlsx","simular":false,"crear_socios":true,"filas":[
+ {"rut":"0123456785","monto":5000,"estado":"cobrado","codigo":"300","banco_codigo":"037","fecha":"2026-03-30"},
+ {"rut":"0099999993","monto":10000,"estado":"rechazado","codigo":"800","banco_codigo":"016","fecha":"2026-03-30"}
+]}'
+expect "rendición sin nómina previa -> 200" 200 "$(req POST /consolidacion/importar "$BAJADA")"
+LOTE_PAC=$(json lote_id)
+expect "crea socios que no existían" 2 "$(json conteo.socios_nuevos)"
+req GET '/socios?buscar=99999993' >/dev/null
+expect "socio creado con su banco" "'Banco BCI'" "$(json datos.0.banco)"
+expect "socio creado sin nombre lo indica" "'Sin nombre (9999999-3)'" "$(json datos.0.nombre)"
+req GET "/consolidacion?periodo=$PC" >/dev/null
+expect "cobrados consolidados" 3 "$(json totales.cobrados)"
+expect "monto cobrado de todos los orígenes" 14500 "$(json totales.monto_cobrado)"
+expect "rechazados consolidados" 2 "$(json totales.rechazados)"
+expect "hay conclusiones" 1 "$(php -r '$d=json_decode(file_get_contents($argv[1]),true); foreach($d["conclusiones"] as $c) if(str_contains($c["texto"],"se puede reintentar")) {echo 1; exit;} echo 0;' "$TMP/body")"
+req POST /cobros/nominas '{"periodo":"2026-03","medio_pago":"PAC","simular":true,"solo_reintentos":true}' >/dev/null
+expect "depurada: solo el rechazado" 1 "$(json registros)"
+expect "depurada: con banco del archivo" 10000 "$(json monto)"
+req POST /cobros/nominas '{"periodo":"2026-03","medio_pago":"PAC","simular":false,"solo_reintentos":true,"fecha_facturacion":"2026-03-31","fecha_vencimiento":"2026-04-02"}' >/dev/null
+NDEP=$(json nomina.id)
+req GET /cobros/nominas/$NDEP/archivo >/dev/null
+expect "depurada: banco del socio en la línea" 1 "$(grep -c '^016004065D0099999993' "$TMP/body")"
+expect "nómina externa no se elimina desde Cobros -> 409" 409 "$(req DELETE /cobros/nominas/$(( NDEP - 1 )))"
+req POST /consolidacion/importar '{"periodo":"2026-03","origen":"PAC","archivo":"r2.xlsx","simular":false,"filas":[{"rut":"9999999-3","monto":10000,"estado":"cobrado","codigo":"300"}]}' >/dev/null
+LOTE_R2=$(json lote_id)
+expect "segunda rendición responde la nómina pendiente" 1 "$(json conteo.responde_nomina)"
+req GET "/consolidacion?periodo=$PC" >/dev/null
+expect "ya no hay rechazados PAC" 0 "$(php -r '$d=json_decode(file_get_contents($argv[1]),true); foreach($d["por_origen"] as $o) if($o["origen"]==="PAC") echo $o["rechazados"];' "$TMP/body")"
+expect "deshacer rendición -> 200" 200 "$(req DELETE /consolidacion/lotes/$LOTE_R2)"
+req GET /cobros/nominas/$NDEP >/dev/null
+expect "el cargo vuelve a esperar respuesta" "'pendiente'" "$(json detalles.0.estado)"
+req GET "/informes?agrupacion=mes&desde=$PC&hasta=$PC" >/dev/null
+expect "informe suma Donar Online" 500 "$(json periodos.0.monto_cobrado_do)"
+expect "informe suma transferencias" 9000 "$(json periodos.0.monto_cobrado_trf)"
+expect "informe total con todos los orígenes" 14500 "$(json periodos.0.monto_cobrado)"
+expect "eliminar carga inexistente -> 404" 404 "$(req DELETE /consolidacion/lotes/99999)"
 
 echo "Eliminar y cerrar sesión"
 expect "eliminar -> 200" 200 "$(req DELETE /socios/$ID)"
