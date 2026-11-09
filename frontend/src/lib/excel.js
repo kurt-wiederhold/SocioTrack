@@ -299,6 +299,7 @@ export function exportarConsolidado(data, origenes, estados) {
   const detalle = data.filas.map((f) => ({
     Donante: seguro(f.nombre),
     RUT: f.rut ?? '',
+    Correo: seguro(f.email ?? ''),
     Origen: origenes[f.origen].label,
     Monto: f.monto,
     Resultado: estados[f.estado].label,
@@ -313,7 +314,7 @@ export function exportarConsolidado(data, origenes, estados) {
   h1['!cols'] = Object.keys(resumen[0]).map((k) => ({ wch: Math.max(14, k.length + 2) }))
   utils.book_append_sheet(wb, h1, 'Resumen')
   const h2 = utils.json_to_sheet(detalle.length ? detalle : [{ Donante: '' }])
-  h2['!cols'] = [{ wch: 32 }, { wch: 12 }, { wch: 22 }, { wch: 10 }, { wch: 20 }, { wch: 8 }, { wch: 10 }, { wch: 50 }, { wch: 12 }]
+  h2['!cols'] = [{ wch: 32 }, { wch: 12 }, { wch: 28 }, { wch: 22 }, { wch: 10 }, { wch: 20 }, { wch: 8 }, { wch: 10 }, { wch: 50 }, { wch: 12 }]
   utils.book_append_sheet(wb, h2, 'Donantes')
   if (conclusiones.length) {
     const h3 = utils.json_to_sheet(conclusiones)

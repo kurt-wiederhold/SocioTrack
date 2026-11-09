@@ -5,7 +5,8 @@
 //  - Respuesta PAT de Transbank: "monto;NOMBRE;RUT;APROBADA" o "V;monto;NOMBRE;RUT;RECHAZO;DDMMAAAA;motivo".
 //  - Nómina PAT: "V;monto;NOMBRE;RUT", sin resultado.
 //  - Planillas de plataformas y transferencias: Nombre, Apellido, Monto, Estado, Detalle (pueden no traer RUT).
-// Devuelve filas { fila, rut, nombre, monto, codigo, motivo, fecha, banco_codigo }; el estado lo define el
+//    Causaxcausa: Donante, Email, RUT, Monto, Aporte a la gestión, Método, Estado, Fecha.
+// Devuelve filas { fila, rut, email, nombre, monto, codigo, motivo, fecha, banco_codigo }; el estado lo define el
 // usuario por código, y el backend vuelve a validar todo.
 import { read, utils } from 'xlsx'
 import { normalizeRut } from './rut.js'
@@ -153,6 +154,8 @@ const ALIAS = {
   estado: ['estado', 'estadodonacion', 'estadopago', 'estadodelpago', 'resultado'],
   motivo: ['detalleestado', 'detalle', 'motivo', 'glosa', 'observacion', 'observaciones'],
   rut: ['rut', 'run', 'documento', 'rutdonante', 'identificacion'],
+  email: ['email', 'correo', 'correoelectronico', 'mail'],
+  aporte: ['aportealagestion'],
   fecha: ['fecha', 'fechadonacion', 'fechapago', 'fechacobro', 'fechadetransferencia', 'fechatransferencia'],
 }
 
@@ -171,6 +174,8 @@ function leerPlanilla(hoja) {
     const motivo = c.motivo >= 0 ? String(f[c.motivo]).trim() : ''
     filas.push({
       fila: idxEnc + j + 2, rut: c.rut >= 0 ? String(f[c.rut]).trim() || null : null, nombre: nombre || null,
+      email: c.email >= 0 ? String(f[c.email]).trim() || null : null,
+      aporte: c.aporte >= 0 ? monto(f[c.aporte]) ?? 0 : 0,
       monto: monto(f[c.monto]), banco_codigo: null,
       codigo: c.estado >= 0 ? String(f[c.estado]).trim() || 'SIN ESTADO' : null,
       motivo: motivo || null, fecha: c.fecha >= 0 ? fecha(f[c.fecha]) : null,
@@ -180,11 +185,14 @@ function leerPlanilla(hoja) {
   const titulos = enc.map(norm)
   const conEstado = c.estado >= 0
   const esDonarOnline = titulos.includes('montodonacion') && titulos.includes('detalleestado')
-  const origen = esDonarOnline ? 'DO' : conEstado ? null : 'TRF'
+  const esCausaxcausa = titulos.includes('aportealagestion') && titulos.includes('donante')
+  const origen = esDonarOnline ? 'DO' : esCausaxcausa ? 'CXC' : conEstado ? null : 'TRF'
+  const conAporte = filas.filter((f) => f.aporte > 0).length
   return {
     tipo: 'planilla', origen, carga: 'bajada', origenElegible: true,
-    etiqueta: esDonarOnline ? 'Planilla de Donar Online' : conEstado ? 'Planilla de donaciones' : 'Planilla de transferencias',
+    etiqueta: esDonarOnline ? 'Planilla de Donar Online' : esCausaxcausa ? 'Planilla de Causaxcausa' : conEstado ? 'Planilla de donaciones' : 'Planilla de transferencias',
     filas, totales: null, periodo: periodoDe(filas),
+    aviso: conAporte ? `${conAporte} fila(s) traen “Aporte a la gestión”: no se suma al monto de la donación.` : null,
   }
 }
 
@@ -198,9 +206,15 @@ export async function leerRespuesta(file, medio) {
 }
 
 // Comprobado con la rendición real: 2 cargos "300" = 2 aceptados por el monto aceptado del banco; "800" = rechazado.
-const EXITO = ['300', 'APROBADA', 'APROBADO', 'COBRADA', 'COBRADO', 'PAGADA', 'PAGADO', 'OK']
+const EXITO = ['300', 'APROBADA', 'APROBADO', 'COBRADA', 'COBRADO', 'PAGADA', 'PAGADO', 'CONFIRMADA', 'CONFIRMADO', 'OK']
+// Causaxcausa: "Socio activo" no trae método de pago y convive con una "Confirmada" del mismo donante y monto:
+// describe la suscripción, no un cobro. Contarlo inflaría lo recaudado. Se puede cambiar en pantalla.
+const NO_ES_COBRO = ['SOCIO ACTIVO', 'ACTIVO', 'ACTIVA']
 /** Códigos que por defecto se consideran cargo exitoso. El usuario puede cambiarlos en pantalla. */
 export const esExitoPorDefecto = (codigo) => EXITO.includes(String(codigo).toUpperCase())
+/** cobrado | rechazado | omitir: interpretación inicial de cada resultado. */
+export const estadoPorDefecto = (codigo) =>
+  NO_ES_COBRO.includes(String(codigo).toUpperCase()) ? 'omitir' : esExitoPorDefecto(codigo) ? 'cobrado' : 'rechazado'
 
 /** Agrupa por código para que el usuario confirme qué significa cada uno. */
 export function resumirCodigos(filas) {

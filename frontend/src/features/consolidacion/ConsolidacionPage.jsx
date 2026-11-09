@@ -58,8 +58,8 @@ export default function ConsolidacionPage() {
     return data.filas.filter((f) =>
       (!filtros.origen || f.origen === filtros.origen)
       && (!filtros.estado || f.estado === filtros.estado)
-      && (!filtros.sinVinculo || (!f.rut && !f.socio_id))
-      && (!q || f.nombre.toLowerCase().includes(q) || (qRut.length >= 3 && (f.rut ?? '').replace('-', '').toLowerCase().includes(qRut))))
+      && (!filtros.sinVinculo || (!f.rut && !f.email && !f.socio_id))
+      && (!q || f.nombre.toLowerCase().includes(q) || (f.email ?? '').includes(q) || (qRut.length >= 3 && (f.rut ?? '').replace('-', '').toLowerCase().includes(qRut))))
   }, [data, filtros])
 
   const aplicarConclusion = (c) => {
@@ -191,7 +191,7 @@ export default function ConsolidacionPage() {
               <div className="flex flex-col gap-2 sm:flex-row">
                 <div className="relative flex-1">
                   <Icon name="search" className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
-                  <Input type="search" aria-label="Buscar donante" placeholder="Buscar por nombre o RUT…" className="pl-9" value={filtros.buscar} onChange={(e) => setFiltros((f) => ({ ...f, buscar: e.target.value }))} />
+                  <Input type="search" aria-label="Buscar donante" placeholder="Buscar por nombre, correo o RUT…" className="pl-9" value={filtros.buscar} onChange={(e) => setFiltros((f) => ({ ...f, buscar: e.target.value }))} />
                 </div>
                 {hayFiltros && (
                   <Button variant="marca-suave" onClick={() => setFiltros(SIN_FILTROS)} className="self-start whitespace-nowrap"><Icon name="x" /> Limpiar filtros</Button>
@@ -219,7 +219,7 @@ export default function ConsolidacionPage() {
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
                           <p className="truncate font-medium text-slate-900">{f.nombre}</p>
-                          <p className="font-mono text-xs text-slate-500">{f.rut ? formatRut(f.rut) : 'Sin RUT'}</p>
+                          <p className="truncate text-xs text-slate-500">{f.rut ? formatRut(f.rut) : f.email ?? 'Sin RUT ni correo'}</p>
                         </div>
                         <p className="shrink-0 font-semibold tabular-nums text-slate-900">{formatCLP(f.monto)}</p>
                       </div>
@@ -239,7 +239,10 @@ export default function ConsolidacionPage() {
                     <tbody className="divide-y divide-slate-100">
                       {visibles.slice(0, limite).map((f, i) => (
                         <tr key={i}>
-                          <td className="max-w-56 truncate px-4 py-2 font-medium text-slate-900">{f.nombre}</td>
+                          <td className="max-w-56 px-4 py-2">
+                            <div className="truncate font-medium text-slate-900">{f.nombre}</div>
+                            {f.email && <div className="truncate text-xs text-slate-500">{f.email}</div>}
+                          </td>
                           <td className="whitespace-nowrap px-4 py-2 font-mono text-xs text-slate-600">{f.rut ? formatRut(f.rut) : '—'}</td>
                           <td className="px-4 py-2"><Badge color={ORIGENES[f.origen].color}>{ORIGENES[f.origen].corto}</Badge></td>
                           <td className="whitespace-nowrap px-4 py-2 text-right tabular-nums">{formatCLP(f.monto)}</td>

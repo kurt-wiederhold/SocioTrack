@@ -1,18 +1,20 @@
 import { useEffect, useMemo, useState } from 'react'
 import * as api from '../../lib/api'
 import { formatCLP, formatPeriodo, sumarMes } from '../../lib/format'
-import { esExitoPorDefecto, leerArchivo, resumirCodigos } from '../../lib/respuestas'
+import { estadoPorDefecto, leerArchivo, resumirCodigos } from '../../lib/respuestas'
 import { Badge, Button, Field, Icon, IconButton, Modal, Select, Spinner, textoAccion } from '../../components/ui'
 import { useToast } from '../../components/Toast'
 import { ORIGENES } from './constants'
 
-/** Convierte lo leído al formato de la API según lo que significa cada código. */
+/** Convierte lo leído al formato de la API según lo que significa cada código. Lo omitido no se envía. */
 const construirFilas = (l, mapa) =>
-  l.filas.map((f) => ({
-    fila: f.fila, rut: f.rut, nombre: f.nombre, monto: f.monto, banco_codigo: f.banco_codigo,
-    codigo: f.codigo, motivo: f.motivo, fecha: f.fecha,
-    estado: l.carga === 'subida' ? 'pendiente' : f.codigo == null ? 'cobrado' : mapa[f.codigo],
-  }))
+  l.filas
+    .map((f) => ({
+      fila: f.fila, rut: f.rut, email: f.email, nombre: f.nombre, monto: f.monto, banco_codigo: f.banco_codigo,
+      codigo: f.codigo, motivo: f.motivo, fecha: f.fecha,
+      estado: l.carga === 'subida' ? 'pendiente' : f.codigo == null ? 'cobrado' : mapa[f.codigo],
+    }))
+    .filter((f) => f.estado !== 'omitir')
 
 export default function CargarArchivo({ periodoInicial, onClose, onCargado }) {
   const toast = useToast()
@@ -39,7 +41,7 @@ export default function CargarArchivo({ periodoInicial, onClose, onCargado }) {
       setLectura(l)
       setOrigen(l.origen ?? '')
       if (l.periodo) setPeriodo(l.periodo)
-      setMapa(Object.fromEntries(resumirCodigos(l.filas).map((c) => [c.codigo, esExitoPorDefecto(c.codigo) ? 'cobrado' : 'rechazado'])))
+      setMapa(Object.fromEntries(resumirCodigos(l.filas).map((c) => [c.codigo, estadoPorDefecto(c.codigo)])))
     } catch (e) {
       setLectura(null)
       setError(e.message || 'No se pudo leer el archivo.')
@@ -55,15 +57,15 @@ export default function CargarArchivo({ periodoInicial, onClose, onCargado }) {
 
   // Simula cada vez que cambia algo: nada se guarda hasta confirmar.
   useEffect(() => {
-    if (!lectura || !origen) return
-    let vigente = true
     setSimulacion(null)
+    if (!lectura || !origen || !filas.length) return
+    let vigente = true
     api.consolidacion.importar({ ...cuerpo, simular: true }).then(
       (r) => { if (vigente) { setSimulacion(r); setError('') } },
       (e) => { if (vigente) setError(e.message) },
     )
     return () => { vigente = false }
-  }, [cuerpo, lectura, origen])
+  }, [cuerpo, lectura, origen, filas])
 
   const aplicar = async () => {
     setAplicando(true)
@@ -82,6 +84,7 @@ export default function CargarArchivo({ periodoInicial, onClose, onCargado }) {
   const t = lectura?.totales
   const cuadra = !t || t.monto_aceptado == null || t.monto_aceptado === cobradoElegido
   const c = simulacion?.conteo
+  const omitidas = lectura ? lectura.filas.length - filas.length : 0
   const duplicado = simulacion?.duplicado
   const conRut = origen === 'PAC' || origen === 'PAT'
 
@@ -96,7 +99,7 @@ export default function CargarArchivo({ periodoInicial, onClose, onCargado }) {
         <>
           <Button variant="secondary" onClick={onClose} disabled={aplicando}>Cancelar</Button>
           {lectura && (
-            <Button onClick={aplicar} loading={aplicando} disabled={!c || c.validas === 0 || !cuadra || (duplicado && !reemplazar)}>
+            <Button onClick={aplicar} loading={aplicando} disabled={!filas.length || !c || c.validas === 0 || !cuadra || (duplicado && !reemplazar)}>
               <Icon name="check" /> Guardar en la consolidación
             </Button>
           )}
@@ -169,9 +172,10 @@ export default function CargarArchivo({ periodoInicial, onClose, onCargado }) {
                           <td className="px-4 py-2 text-right tabular-nums">{formatCLP(x.monto)}</td>
                           <td className="max-w-64 truncate px-4 py-2 text-xs text-slate-500" title={x.motivo ?? undefined}>{x.motivo ?? '—'}</td>
                           <td className="px-4 py-2">
-                            <Select aria-label={`Estado para ${x.codigo}`} value={mapa[x.codigo]} onChange={(e) => setMapa((m) => ({ ...m, [x.codigo]: e.target.value }))} className="w-36">
+                            <Select aria-label={`Estado para ${x.codigo}`} value={mapa[x.codigo]} onChange={(e) => setMapa((m) => ({ ...m, [x.codigo]: e.target.value }))} className="w-52">
                               <option value="cobrado">Cobrado</option>
                               <option value="rechazado">Rechazado</option>
+                              <option value="omitir">No es un cobro (omitir)</option>
                             </Select>
                           </td>
                         </tr>
@@ -181,6 +185,13 @@ export default function CargarArchivo({ periodoInicial, onClose, onCargado }) {
                 </div>
               </section>
             )}
+
+            {omitidas > 0 && (
+              <p className="rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-700 ring-1 ring-slate-200" role="status">
+                {omitidas === 1 ? '1 registro no se cuenta' : `${omitidas} registros no se cuentan`} como cobro. Si en este archivo sí lo son, cambia su resultado arriba.
+              </p>
+            )}
+            {lectura.aviso && <p className="rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600">{lectura.aviso}</p>}
 
             {t && (
               <p className={`rounded-lg px-3 py-2 text-sm ring-1 ${cuadra ? 'bg-emerald-50 text-emerald-900 ring-emerald-200' : 'bg-red-50 text-red-900 ring-red-200'}`} role="status">
@@ -213,6 +224,8 @@ export default function CargarArchivo({ periodoInicial, onClose, onCargado }) {
               <h3 className="mb-2 text-sm font-semibold text-slate-900">Resultado <span className="font-normal text-slate-500">(todavía no se guarda)</span></h3>
               {!origen ? (
                 <p className="text-sm text-slate-500">Elige el origen para ver el resultado.</p>
+              ) : !filas.length ? (
+                <p className="text-sm text-slate-500">Todos los registros están marcados como “no es un cobro”: no hay nada que guardar.</p>
               ) : !c ? (
                 <div className="flex items-center gap-2 text-sm text-slate-500"><Spinner className="size-4" /> Revisando…</div>
               ) : (
@@ -223,7 +236,7 @@ export default function CargarArchivo({ periodoInicial, onClose, onCargado }) {
                     {lectura.carga === 'subida' && <Dato label="Enviados, sin respuesta" valor={c.pendientes} />}
                     {conRut
                       ? <Dato label="Socios nuevos" valor={c.socios_nuevos} sub={crearSocios ? 'se registran' : 'no se registran'} />
-                      : <Dato label="Calzan con un socio" valor={c.vinculados} sub={`${c.sin_vincular} solo por nombre`} />}
+                      : <Dato label="Calzan con un socio" valor={c.vinculados} sub={`${c.sin_vincular} sin vincular`} />}
                     <Dato label="Filas con problemas" valor={c.invalidas} sub={c.invalidas ? 'no se cargan' : 'ninguna'} />
                   </div>
                   {c.responde_nomina > 0 && (

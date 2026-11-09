@@ -255,6 +255,17 @@ expect "mismo archivo dos veces -> 409" 409 "$(req POST /consolidacion/importar 
 expect "reemplazar lo carga de nuevo -> 200" 200 "$(req POST /consolidacion/importar "${APLICAR_DO/\"simular\":false/\"simular\":false,\"reemplazar\":true}")"
 LOTE_DO=$(json lote_id)
 expect "transferencias -> 200" 200 "$(req POST /consolidacion/importar '{"periodo":"2026-03","origen":"TRF","archivo":"t.xlsx","simular":false,"filas":[{"nombre":"Rosa Transfiere","monto":9000,"estado":"cobrado"}]}')"
+CXC='{"periodo":"2026-03","origen":"CXC","archivo":"cxc.csv","simular":false,"filas":[
+ {"nombre":"Marta Correo","email":"Marta@Ejemplo.test","monto":3000,"estado":"cobrado","codigo":"Confirmada"},
+ {"nombre":"Marta Correo Distinta","email":"marta@ejemplo.test","monto":2000,"estado":"cobrado","codigo":"Confirmada"},
+ {"nombre":"Correo Malo","email":"no-es-correo","monto":1000,"estado":"rechazado","codigo":"X"}
+]}'
+expect "Causaxcausa con correo -> 200" 200 "$(req POST /consolidacion/importar "$CXC")"
+LOTE_CXC=$(json lote_id)
+req GET "/consolidacion?periodo=$PC" >/dev/null
+php -r '$d=json_decode(file_get_contents($argv[1]),true); $c=array_values(array_filter($d["filas"],fn($f)=>$f["origen"]==="CXC")); $k=array_unique(array_column($c,"clave")); echo count($c),"|",count($k),"|",count(array_filter($c,fn($f)=>$f["email"]==="marta@ejemplo.test"));' "$TMP/body" > "$TMP/cxc"
+expect "mismo correo = mismo donante; correo inválido se ignora" "3|2|2" "$(cat "$TMP/cxc")"
+expect "deshacer Causaxcausa -> 200" 200 "$(req DELETE /consolidacion/lotes/$LOTE_CXC)"
 BAJADA='{"periodo":"2026-03","origen":"PAC","archivo":"rendicion.xlsx","simular":false,"crear_socios":true,"filas":[
  {"rut":"0123456785","monto":5000,"estado":"cobrado","codigo":"300","banco_codigo":"037","fecha":"2026-03-30"},
  {"rut":"0099999993","monto":10000,"estado":"rechazado","codigo":"800","banco_codigo":"016","fecha":"2026-03-30"}

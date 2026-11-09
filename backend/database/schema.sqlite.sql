@@ -111,6 +111,7 @@ CREATE TABLE IF NOT EXISTS donaciones (
     socio_id INTEGER NULL REFERENCES socios (id) ON DELETE SET NULL,
     clave    TEXT NOT NULL,
     rut      TEXT NULL,
+    email    TEXT NULL,
     nombre   TEXT NOT NULL,
     monto    INTEGER NOT NULL,
     estado   TEXT NOT NULL CHECK (estado IN ('cobrado','rechazado','pendiente')),

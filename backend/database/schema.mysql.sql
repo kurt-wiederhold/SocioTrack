@@ -120,7 +120,7 @@ CREATE TABLE IF NOT EXISTS consolidacion_lotes (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Donaciones de plataformas que cobran por su cuenta (Donar Online, Causaxcausa) y transferencias.
--- Pueden no traer RUT: el donante se sigue por su "clave" (RUT o nombre normalizado).
+-- Pueden no traer RUT: el donante se sigue por su "clave" (RUT, correo o nombre normalizado).
 CREATE TABLE IF NOT EXISTS donaciones (
     id       INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     lote_id  INT UNSIGNED NOT NULL,
@@ -129,6 +129,7 @@ CREATE TABLE IF NOT EXISTS donaciones (
     socio_id INT UNSIGNED NULL,
     clave    VARCHAR(190) NOT NULL,
     rut      VARCHAR(10)  NULL,
+    email    VARCHAR(190) NULL,
     nombre   VARCHAR(150) NOT NULL,
     monto    INT UNSIGNED NOT NULL,
     estado   ENUM('cobrado','rechazado','pendiente') NOT NULL,

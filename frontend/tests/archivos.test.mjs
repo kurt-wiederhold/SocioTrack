@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { utils, write } from 'xlsx'
-import { leerArchivo, leerRespuesta, esExitoPorDefecto, resumirCodigos } from '../src/lib/respuestas.js'
+import { leerArchivo, leerRespuesta, esExitoPorDefecto, estadoPorDefecto, resumirCodigos } from '../src/lib/respuestas.js'
 
 const deTexto = (nombre, t) => {
   const b = new TextEncoder().encode(t)
@@ -81,6 +81,26 @@ test('Donar Online: nombre y apellido se unen, sin RUT, filas vacías se ignoran
   assert.equal(l.filas[0].nombre, 'Ana Prueba Uno')
   assert.equal(l.filas[1].motivo, 'Tarjeta con restricciones')
   assert.deepEqual(resumirCodigos(l.filas).map((c) => c.codigo), ['Cobrada', 'Rechazada'])
+})
+
+test('Causaxcausa: CSV con comillas, correo y estados que no son cobro', async () => {
+  const l = await leerArchivo(deTexto('c.csv', [
+    '"Donante","Email","RUT","Teléfono","Dirección","Monto","Aporte a la gestión","Tipo","Método","Estado","Fecha"',
+    '"Ana Prueba","ana@ejemplo.test","","","","10000","0","Mensual","Flow","Confirmada","03-11-2026"',
+    '"Ana Prueba","ana@ejemplo.test","","","","10000","0","Mensual","—","Socio activo","02-11-2026"',
+    '"Luis Prueba","luis@ejemplo.test","12.345.678-5","\'+56912345678","","20000","500","Mensual","—","Socio activo","02-11-2026"',
+  ].join('\n')))
+  assert.equal(l.origen, 'CXC')
+  assert.equal(l.etiqueta, 'Planilla de Causaxcausa')
+  assert.equal(l.periodo, '2026-11')
+  assert.equal(l.filas.length, 3)
+  assert.equal(l.filas[0].email, 'ana@ejemplo.test')
+  assert.equal(l.filas[0].monto, 10000)
+  assert.equal(l.filas[2].rut, '12.345.678-5')
+  assert.match(l.aviso, /Aporte a la gestión/)
+  assert.equal(estadoPorDefecto('Confirmada'), 'cobrado')
+  assert.equal(estadoPorDefecto('Socio activo'), 'omitir')
+  assert.equal(estadoPorDefecto('800'), 'rechazado')
 })
 
 test('transferencias: Nombre, Apellido y Monto, sin estado', async () => {

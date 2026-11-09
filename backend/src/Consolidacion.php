@@ -8,7 +8,7 @@ namespace App;
  *   PAC (Banco de Chile) y PAT (Transbank): se identifican por RUT y alimentan el ciclo de cobro,
  *     de modo que los rechazados quedan listos para la siguiente nómina.
  *   DO (Donar Online), CXC (Causaxcausa) y TRF (transferencias): las plataformas cobran por su
- *     cuenta y pueden no traer RUT, así que el donante se sigue por su "clave" (RUT o nombre).
+ *     cuenta y pueden no traer RUT, así que el donante se sigue por su "clave" (RUT, correo o nombre).
  * Los archivos se leen en el navegador; aquí se valida todo de nuevo.
  */
 final class Consolidacion
@@ -161,9 +161,12 @@ final class Consolidacion
             if ($conRut) {
                 $vistos[$rut] = $fila;
             }
+            $email = is_string($f['email'] ?? null) ? mb_strtolower(trim($f['email'])) : '';
+            $email = mb_strlen($email) <= 190 && filter_var($email, FILTER_VALIDATE_EMAIL) ? $email : null;
             $fecha = is_string($f['fecha'] ?? null) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $f['fecha']) ? $f['fecha'] : null;
             $validas[] = [
                 'rut' => $rut,
+                'email' => $email,
                 'nombre' => $nombre,
                 'monto' => $monto,
                 'estado' => $estado,
@@ -171,7 +174,7 @@ final class Consolidacion
                 'motivo' => self::texto($f['motivo'] ?? null, 200),
                 'fecha' => $fecha,
                 'banco_codigo' => Bancos::codigo($f['banco_codigo'] ?? null),
-                'clave' => $rut ? "r:$rut" : 'n:' . mb_substr(self::normalizarNombre((string) $nombre), 0, 180),
+                'clave' => $rut ? "r:$rut" : ($email ? "e:$email" : 'n:' . mb_substr(self::normalizarNombre((string) $nombre), 0, 180)),
             ];
         }
         return [$validas, $obs];
@@ -290,20 +293,23 @@ final class Consolidacion
     {
         $indice = self::indiceSocios();
         $stmt = Db::pdo()->prepare(
-            'INSERT INTO donaciones (lote_id, periodo, origen, socio_id, clave, rut, nombre, monto, estado, codigo, motivo, fecha)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+            'INSERT INTO donaciones (lote_id, periodo, origen, socio_id, clave, rut, email, nombre, monto, estado, codigo, motivo, fecha)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
         );
         foreach ($validas as $f) {
-            $stmt->execute([$loteId, $periodo, $origen, self::socioPara($f, $indice), $f['clave'], $f['rut'], $f['nombre'] ?? $f['rut'],
+            $stmt->execute([$loteId, $periodo, $origen, self::socioPara($f, $indice), $f['clave'], $f['rut'], $f['email'], $f['nombre'] ?? $f['email'] ?? $f['rut'],
                 $f['monto'], $f['estado'], $f['codigo'], $f['motivo'], $f['fecha']]);
         }
     }
 
-    /** Socios por RUT y por nombre normalizado, para vincular donantes de plataformas. */
+    /** Socios por RUT, correo y nombre normalizado, para vincular donantes de plataformas. */
     private static function indiceSocios(): array
     {
-        $i = ['rut' => [], 'nombre' => [], 'tokens' => []];
-        foreach (Db::all('SELECT id, rut, nombre FROM socios') as $s) {
+        $i = ['rut' => [], 'email' => [], 'nombre' => [], 'tokens' => []];
+        foreach (Db::all('SELECT id, rut, email, nombre FROM socios') as $s) {
+            if ($s['email']) {
+                $i['email'][mb_strtolower($s['email'])][] = (int) $s['id'];
+            }
             $n = self::normalizarNombre($s['nombre']);
             $i['rut'][$s['rut']] = (int) $s['id'];
             $i['nombre'][$n][] = (int) $s['id'];
@@ -313,13 +319,16 @@ final class Consolidacion
     }
 
     /**
-     * Vincula con un socio solo si no hay ambigüedad: por RUT, por nombre exacto o porque
+     * Vincula con un socio solo si no hay ambigüedad: por RUT, correo, nombre exacto o porque
      * todas las palabras del nombre (mínimo dos) están en exactamente un socio.
      */
     private static function socioPara(array $f, array $indice): ?int
     {
         if ($f['rut']) {
             return $indice['rut'][$f['rut']] ?? null;
+        }
+        if ($f['email'] && count($indice['email'][$f['email']] ?? []) === 1) {
+            return $indice['email'][$f['email']][0];
         }
         $n = self::normalizarNombre((string) $f['nombre']);
         $exacto = $indice['nombre'][$n] ?? [];
@@ -469,7 +478,7 @@ final class Consolidacion
         }
         $filas = array_values($grupos);
         foreach (Db::all('SELECT * FROM donaciones WHERE periodo = ? ORDER BY id', [$periodo]) as $d) {
-            $filas[] = ['clave' => $d['clave'], 'rut' => $d['rut'], 'nombre' => $d['nombre'], 'origen' => $d['origen'],
+            $filas[] = ['clave' => $d['clave'], 'rut' => $d['rut'], 'email' => $d['email'], 'nombre' => $d['nombre'], 'origen' => $d['origen'],
                 'monto' => (int) $d['monto'], 'estado' => $d['estado'], 'intentos' => 1, 'motivo' => $d['motivo'], 'codigo' => $d['codigo'],
                 'socio_id' => $d['socio_id'] === null ? null : (int) $d['socio_id'], 'banco_codigo' => null, 'fecha' => $d['fecha']];
         }
@@ -598,9 +607,9 @@ final class Consolidacion
         }
 
         // Calidad de los datos.
-        $sinVinculo = array_filter($filas, fn ($f) => !$f['rut'] && !$f['socio_id']);
+        $sinVinculo = array_filter($filas, fn ($f) => !$f['rut'] && empty($f['email']) && !$f['socio_id']);
         if ($sinVinculo) {
-            $agregar('aviso', $n(count($sinVinculo), 'donante viene sin RUT y no calza', 'donantes vienen sin RUT y no calzan') . ' con ningún socio: se siguen solo por el nombre. Conviene pedir el RUT o correo a la plataforma.', ['sin_vinculo' => true]);
+            $agregar('aviso', $n(count($sinVinculo), 'donante viene sin RUT ni correo y no calza', 'donantes vienen sin RUT ni correo y no calzan') . ' con ningún socio: se siguen solo por el nombre. Conviene pedir esos datos a la plataforma.', ['sin_vinculo' => true]);
         }
         $sinNombre = (int) Db::one("SELECT COUNT(*) AS n FROM socios WHERE nombre LIKE 'Sin nombre (%'")['n'];
         if ($sinNombre) {
