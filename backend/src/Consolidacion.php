@@ -51,6 +51,7 @@ final class Consolidacion
         $origen = $p['origen'];
         $tipo = ($p['tipo'] ?? 'bajada') === 'subida' && in_array($origen, self::CON_RUT, true) ? 'subida' : 'bajada';
         [$validas, $obs] = self::normalizar($filas, $origen);
+        [$validas, $repetidas] = self::quitarRepetidas($validas);
 
         $huella = hash('sha256', json_encode([$origen, $p['periodo'], $tipo, array_map(
             fn ($f) => [$f['clave'], $f['monto'], $f['estado'], $f['codigo']],
@@ -66,6 +67,7 @@ final class Consolidacion
             'cobrados' => 0, 'rechazados' => 0, 'pendientes' => 0,
             'monto_cobrado' => 0, 'monto_rechazado' => 0,
             'invalidas' => count($obs),
+            'repetidas' => count($repetidas),
             'socios_nuevos' => $plan['socios_nuevos'],
             'vinculados' => $plan['vinculados'],
             'sin_vincular' => $plan['sin_vincular'],
@@ -82,7 +84,7 @@ final class Consolidacion
         $res = [
             'simulado' => $simular,
             'conteo' => $conteo,
-            'observaciones' => array_slice($obs, 0, 200),
+            'observaciones' => array_slice([...$obs, ...$repetidas], 0, 200),
             'duplicado' => $duplicado,
         ];
         if ($simular) {
@@ -175,9 +177,37 @@ final class Consolidacion
                 'fecha' => $fecha,
                 'banco_codigo' => Bancos::codigo($f['banco_codigo'] ?? null),
                 'clave' => $rut ? "r:$rut" : ($email ? "e:$email" : 'n:' . mb_substr(self::normalizarNombre((string) $nombre), 0, 180)),
+                'fila' => $fila,
             ];
         }
         return [$validas, $obs];
+    }
+
+    /**
+     * Causaxcausa registra el mismo pago dos veces: "Confirmada" y "Socio activo", mismo donante y monto.
+     * La Fundación pidió quedarse con "Socio activo" (nov. 2026): se descarta la otra para no contar doble.
+     * @return array{0: array, 1: array} [filas que quedan, observaciones de las descartadas]
+     */
+    private static function quitarRepetidas(array $validas): array
+    {
+        $esSocioActivo = fn ($f) => $f['estado'] === 'cobrado' && mb_strtoupper((string) $f['codigo']) === 'SOCIO ACTIVO';
+        $libres = [];
+        foreach ($validas as $i => $f) {
+            if ($f['estado'] === 'cobrado' && !$esSocioActivo($f)) {
+                $libres[$f['clave'] . '|' . $f['monto']][] = $i;
+            }
+        }
+        $obs = [];
+        foreach ($validas as $f) {
+            $k = $f['clave'] . '|' . $f['monto'];
+            if ($esSocioActivo($f) && !empty($libres[$k])) {
+                $i = array_shift($libres[$k]);
+                $obs[] = ['fila' => $validas[$i]['fila'], 'nombre' => $validas[$i]['nombre'],
+                    'mensaje' => "Repite el pago de la fila {$f['fila']} (Socio activo, mismo donante y monto): se cuenta una sola vez."];
+                unset($validas[$i]);
+            }
+        }
+        return [array_values($validas), $obs];
     }
 
     /** Qué pasará al aplicar: socios nuevos, vínculos por nombre y cargos que responde. */

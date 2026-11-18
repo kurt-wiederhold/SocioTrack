@@ -85,7 +85,7 @@ export default function CobrosPage() {
           ['Generar nómina', 'Con los socios activos aún no cobrados este mes.'],
           ['Enviar archivo', 'Descárgalo y súbelo al banco o a Transbank.'],
           ['Cargar respuesta', 'Se cruza por RUT: cobrado o rechazado.'],
-          ['Reintentar', `Los rechazados entran en la siguiente nómina (hasta ${data ? data.max_intentos - 1 : 4} reintentos).`],
+          ['Reintentar', `Los rechazados entran en la siguiente nómina (hasta ${data ? data.max_intentos - 1 : 2} reintentos).`],
         ].map(([t, d], i) => (
           <li key={t} className="flex gap-3 rounded-xl bg-white p-3 ring-1 ring-slate-200">
             <span className="grid size-6 shrink-0 place-items-center rounded-full bg-brand-50 text-xs font-semibold text-brand-700">{i + 1}</span>

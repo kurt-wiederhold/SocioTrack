@@ -126,6 +126,7 @@ export default function CargarArchivo({ periodoInicial, onClose, onCargado }) {
               <Icon name="file" className="size-5 text-slate-400" />
               <span className="font-medium text-slate-900">{archivo.name}</span>
               <Badge color="blue">{lectura.etiqueta}</Badge>
+              <Badge color="gray">{lectura.carga === 'subida' ? 'Subida: lo que se envió a cobrar' : 'Bajada: resultado de la plataforma'}</Badge>
               <span className="text-slate-500">{lectura.filas.length} filas</span>
               <button type="button" className={textoAccion} onClick={() => { setLectura(null); setSimulacion(null) }}>Cambiar archivo</button>
             </div>
@@ -239,6 +240,11 @@ export default function CargarArchivo({ periodoInicial, onClose, onCargado }) {
                       : <Dato label="Calzan con un socio" valor={c.vinculados} sub={`${c.sin_vincular} sin vincular`} />}
                     <Dato label="Filas con problemas" valor={c.invalidas} sub={c.invalidas ? 'no se cargan' : 'ninguna'} />
                   </div>
+                  {c.repetidas > 0 && (
+                    <p className="mt-2 text-sm text-slate-600">
+                      {c.repetidas === 1 ? '1 pago aparece' : `${c.repetidas} pagos aparecen`} como “Confirmada” y como “Socio activo”: se cuenta{c.repetidas === 1 ? '' : 'n'} una sola vez, como “Socio activo”.
+                    </p>
+                  )}
                   {c.responde_nomina > 0 && (
                     <p className="mt-2 text-sm text-slate-600">{c.responde_nomina} cargos responden una nómina que estaba esperando respuesta.</p>
                   )}

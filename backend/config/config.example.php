@@ -20,7 +20,7 @@ return [
     ],
     'cobro' => [
         // Reintentos por mes después del envío original. La Fundación sube las nóminas tres veces
-        // al mes (correo de nov. 2026), por eso 2. El documento inicial hablaba de 4: confirmar.
+        // al mes (confirmado por la Fundación, nov. 2026): 1 envío + 2 reintentos.
         'max_reintentos' => 2,
         // Convenio PAC con el Banco de Chile. El código de banco de cada línea sale del banco del socio.
         'pac' => [

@@ -5,6 +5,7 @@
 //  - Respuesta PAT de Transbank: "monto;NOMBRE;RUT;APROBADA" o "V;monto;NOMBRE;RUT;RECHAZO;DDMMAAAA;motivo".
 //  - Nómina PAT: "V;monto;NOMBRE;RUT", sin resultado.
 //  - Planillas de plataformas y transferencias: Nombre, Apellido, Monto, Estado, Detalle (pueden no traer RUT).
+//    Donar Online: desde nov. 2026 la Fundación lo exporta también con RUT y correo; si vienen, se leen.
 //    Causaxcausa: Donante, Email, RUT, Monto, Aporte a la gestión, Método, Estado, Fecha.
 // Devuelve filas { fila, rut, email, nombre, monto, codigo, motivo, fecha, banco_codigo }; el estado lo define el
 // usuario por código, y el backend vuelve a validar todo.
@@ -153,8 +154,8 @@ const ALIAS = {
   monto: ['monto', 'montodonacion', 'montodonado', 'donacion', 'aporte', 'valor', 'total'],
   estado: ['estado', 'estadodonacion', 'estadopago', 'estadodelpago', 'resultado'],
   motivo: ['detalleestado', 'detalle', 'motivo', 'glosa', 'observacion', 'observaciones'],
-  rut: ['rut', 'run', 'documento', 'rutdonante', 'identificacion'],
-  email: ['email', 'correo', 'correoelectronico', 'mail'],
+  rut: ['rut', 'run', 'documento', 'rutdonante', 'rutdeldonante', 'identificacion'],
+  email: ['email', 'correo', 'correoelectronico', 'mail', 'emaildonante', 'emaildeldonante', 'correodonante', 'correodeldonante'],
   aporte: ['aportealagestion'],
   fecha: ['fecha', 'fechadonacion', 'fechapago', 'fechacobro', 'fechadetransferencia', 'fechatransferencia'],
 }
@@ -206,15 +207,13 @@ export async function leerRespuesta(file, medio) {
 }
 
 // Comprobado con la rendición real: 2 cargos "300" = 2 aceptados por el monto aceptado del banco; "800" = rechazado.
-const EXITO = ['300', 'APROBADA', 'APROBADO', 'COBRADA', 'COBRADO', 'PAGADA', 'PAGADO', 'CONFIRMADA', 'CONFIRMADO', 'OK']
-// Causaxcausa: "Socio activo" no trae método de pago y convive con una "Confirmada" del mismo donante y monto:
-// describe la suscripción, no un cobro. Contarlo inflaría lo recaudado. Se puede cambiar en pantalla.
-const NO_ES_COBRO = ['SOCIO ACTIVO', 'ACTIVO', 'ACTIVA']
+// Causaxcausa: "Socio activo" es un cobro. Si convive con una "Confirmada" del mismo donante y monto, el backend
+// se queda con "Socio activo" y descarta la otra (indicación de la Fundación, nov. 2026).
+const EXITO = ['300', 'APROBADA', 'APROBADO', 'COBRADA', 'COBRADO', 'PAGADA', 'PAGADO', 'CONFIRMADA', 'CONFIRMADO', 'SOCIO ACTIVO', 'OK']
 /** Códigos que por defecto se consideran cargo exitoso. El usuario puede cambiarlos en pantalla. */
 export const esExitoPorDefecto = (codigo) => EXITO.includes(String(codigo).toUpperCase())
-/** cobrado | rechazado | omitir: interpretación inicial de cada resultado. */
-export const estadoPorDefecto = (codigo) =>
-  NO_ES_COBRO.includes(String(codigo).toUpperCase()) ? 'omitir' : esExitoPorDefecto(codigo) ? 'cobrado' : 'rechazado'
+/** cobrado | rechazado: interpretación inicial de cada resultado ("omitir" lo elige el usuario). */
+export const estadoPorDefecto = (codigo) => (esExitoPorDefecto(codigo) ? 'cobrado' : 'rechazado')
 
 /** Agrupa por código para que el usuario confirme qué significa cada uno. */
 export function resumirCodigos(filas) {

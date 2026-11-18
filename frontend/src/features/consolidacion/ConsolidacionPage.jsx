@@ -270,7 +270,7 @@ export default function ConsolidacionPage() {
                   <li key={l.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2 text-sm">
                     <Badge color={ORIGENES[l.origen].color}>{ORIGENES[l.origen].corto}</Badge>
                     <span className="min-w-0 flex-1 truncate font-medium text-slate-900">{l.archivo}</span>
-                    <span className="text-xs text-slate-500">{l.filas} filas · {l.tipo === 'subida' ? 'enviado' : 'resultado'} · {formatFecha(l.creado_en)}</span>
+                    <span className="text-xs text-slate-500">{l.filas} filas · {l.tipo === 'subida' ? 'subida (enviado a cobrar)' : 'bajada (resultado)'} · {formatFecha(l.creado_en)}</span>
                     <IconButton icon="trash" tone="danger" label={`Deshacer la carga de ${l.archivo}`} onClick={() => setEliminando(l)} />
                   </li>
                 ))}

@@ -266,6 +266,13 @@ req GET "/consolidacion?periodo=$PC" >/dev/null
 php -r '$d=json_decode(file_get_contents($argv[1]),true); $c=array_values(array_filter($d["filas"],fn($f)=>$f["origen"]==="CXC")); $k=array_unique(array_column($c,"clave")); echo count($c),"|",count($k),"|",count(array_filter($c,fn($f)=>$f["email"]==="marta@ejemplo.test"));' "$TMP/body" > "$TMP/cxc"
 expect "mismo correo = mismo donante; correo inválido se ignora" "3|2|2" "$(cat "$TMP/cxc")"
 expect "deshacer Causaxcausa -> 200" 200 "$(req DELETE /consolidacion/lotes/$LOTE_CXC)"
+CXC_DOBLE='{"periodo":"2026-03","origen":"CXC","archivo":"cxc2.csv","simular":true,"filas":[
+ {"fila":2,"nombre":"Paz Doble","email":"paz@ejemplo.test","monto":4000,"estado":"cobrado","codigo":"Confirmada"},
+ {"fila":3,"nombre":"Paz Doble","email":"paz@ejemplo.test","monto":4000,"estado":"cobrado","codigo":"Socio activo"},
+ {"fila":4,"nombre":"Solo Activo","email":"solo@ejemplo.test","monto":6000,"estado":"cobrado","codigo":"Socio activo"}
+]}'
+expect "Confirmada + Socio activo -> 200" 200 "$(req POST /consolidacion/importar "$CXC_DOBLE")"
+expect "Socio activo cuenta una vez por pago" "2|10000|1" "$(json conteo.cobrados)|$(json conteo.monto_cobrado)|$(json conteo.repetidas)"
 BAJADA='{"periodo":"2026-03","origen":"PAC","archivo":"rendicion.xlsx","simular":false,"crear_socios":true,"filas":[
  {"rut":"0123456785","monto":5000,"estado":"cobrado","codigo":"300","banco_codigo":"037","fecha":"2026-03-30"},
  {"rut":"0099999993","monto":10000,"estado":"rechazado","codigo":"800","banco_codigo":"016","fecha":"2026-03-30"}

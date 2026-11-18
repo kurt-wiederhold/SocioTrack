@@ -69,6 +69,16 @@ test('nómina PAC: banco por línea y aviso si no trae totales', async () => {
   assert.equal(l.sinTotales, true)
 })
 
+test('Donar Online con RUT y correo', async () => {
+  const l = await leerArchivo(deHoja('do.xlsx', [
+    ['Nombre', 'Apellido', 'RUT', 'Email', 'Monto Donación', 'Estado', 'Detalle Estado'],
+    ['Ana', 'Prueba', '12.345.678-5', 'ana@ejemplo.test', 500, 'Cobrada', ''],
+  ]))
+  assert.equal(l.origen, 'DO')
+  assert.equal(l.filas[0].rut, '12.345.678-5')
+  assert.equal(l.filas[0].email, 'ana@ejemplo.test')
+})
+
 test('Donar Online: nombre y apellido se unen, sin RUT, filas vacías se ignoran', async () => {
   const l = await leerArchivo(deHoja('do.xlsx', [
     ['Nombre', 'Apellido', 'Monto Donación', 'Estado', 'Detalle Estado'],
@@ -83,7 +93,7 @@ test('Donar Online: nombre y apellido se unen, sin RUT, filas vacías se ignoran
   assert.deepEqual(resumirCodigos(l.filas).map((c) => c.codigo), ['Cobrada', 'Rechazada'])
 })
 
-test('Causaxcausa: CSV con comillas, correo y estados que no son cobro', async () => {
+test('Causaxcausa: CSV con comillas, correo y "Socio activo"', async () => {
   const l = await leerArchivo(deTexto('c.csv', [
     '"Donante","Email","RUT","Teléfono","Dirección","Monto","Aporte a la gestión","Tipo","Método","Estado","Fecha"',
     '"Ana Prueba","ana@ejemplo.test","","","","10000","0","Mensual","Flow","Confirmada","03-11-2026"',
@@ -99,7 +109,7 @@ test('Causaxcausa: CSV con comillas, correo y estados que no son cobro', async (
   assert.equal(l.filas[2].rut, '12.345.678-5')
   assert.match(l.aviso, /Aporte a la gestión/)
   assert.equal(estadoPorDefecto('Confirmada'), 'cobrado')
-  assert.equal(estadoPorDefecto('Socio activo'), 'omitir')
+  assert.equal(estadoPorDefecto('Socio activo'), 'cobrado')
   assert.equal(estadoPorDefecto('800'), 'rechazado')
 })
 

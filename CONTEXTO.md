@@ -17,9 +17,15 @@ Medios que lee:
 | PAC | Nómina `.txt` (80 caracteres por línea) | Lo que se envió a cobrar (RUT, banco, monto) |
 | PAT (Transbank) | Respuesta (`.csv` o sin extensión) | `monto;nombre;rut;APROBADA/RECHAZO` |
 | PAT | Nómina `.csv` | `V;monto;nombre;rut` |
-| Donar Online | `.xlsx` | Nombre, apellido, monto, estado (Cobrada/Rechazada). **Sin RUT** |
+| Donar Online | `.xlsx` | Nombre, apellido, monto, estado (Cobrada/Rechazada). RUT y correo si la exportación los trae |
 | Causaxcausa | `.csv` | Donante, correo, RUT (a veces), monto, estado (Confirmada / Socio activo) |
 | Transferencias | Planilla Excel | Nombre, apellido y monto |
+
+Vocabulario de la Fundación:
+
+- **Subida:** lo que la Fundación envía a cobrar (nóminas PAC y PAT). Se sube **tres veces al mes**:
+  1 envío + 2 reintentos con los no cobrados.
+- **Bajada:** lo que se exporta desde el banco y las plataformas (rendición, respuesta de Transbank, planillas).
 
 ## Pestañas
 
@@ -33,8 +39,9 @@ Medios que lee:
 ## Decisiones de la consolidación
 
 - El donante se identifica por **RUT**, si no hay por **correo** y, en último caso, por **nombre** normalizado.
-- En Causaxcausa, "Socio activo" se trata por defecto como **no es un cobro**: aparece junto a una "Confirmada"
-  del mismo donante y monto, y sumarlo contaría doble. Se puede cambiar en pantalla al cargar el archivo.
+- En Causaxcausa, "Socio activo" **es un cobro**. Cuando el mismo donante aparece como "Confirmada" y como
+  "Socio activo" por el mismo monto, se queda solo "Socio activo" para no contar doble (indicación de la Fundación).
+  Cada estado se puede cambiar en pantalla al cargar el archivo.
 - "Aporte a la gestión" no se suma al monto de la donación.
 - Un mismo archivo no se puede cargar dos veces (se detecta por su contenido), salvo que se pida reemplazarlo.
 - Antes de guardar, la carga muestra una simulación. Si la rendición PAC no cuadra con sus totales, no se guarda.
@@ -89,9 +96,9 @@ cd backend && php tests/unit.php && bash tests/api.sh
 El repositorio es **público**. Los archivos reales de la Fundación tienen RUT, nombres y correos de personas:
 **nunca se suben ni se copian al repo**. Las pruebas usan solo datos ficticios. Tampoco se sube `config.php`.
 
-## Preguntas abiertas para Rodrigo
+## Respuestas de Rodrigo (nov. 2026)
 
-1. ¿Cuántas veces al mes llega la respuesta del banco y de Transbank? (Su correo dice tres; el documento inicial, cuatro. Hoy está en 3.)
-2. ¿Qué significa "Socio activo" en Causaxcausa?
-3. ¿Donar Online puede exportar RUT o correo?
-4. Archivos de un mismo mes para probar el cruce completo (las muestras actuales no comparten personas).
+1. Las nóminas se suben **3 veces al mes**, no 4 (`cobro.max_reintentos = 2`).
+2. "Socio activo": si la plataforma usa dos nombres para el mismo pago, quedarse con "Socio activo".
+3. Donar Online se puede exportar con RUT y correo: los enviará así.
+4. Enviará archivos de un mismo mes para probar el cruce. De Causaxcausa solo hay archivo del mes actual.
