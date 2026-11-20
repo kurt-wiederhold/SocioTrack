@@ -10,12 +10,15 @@ namespace App;
 final class SocioValidator
 {
     public const ESTADOS = ['activo', 'suspendido', 'baja'];
-    public const MEDIOS_PAGO = ['PAC', 'PAT'];
+    public const MEDIOS_PAGO = ['PAC', 'PAT', 'TRF', 'DO', 'CXC'];
     public const MONTO_MAX = 10_000_000;
 
     private const ALIAS_MEDIO = [
         'pac' => 'PAC', 'banco' => 'PAC', 'cuenta' => 'PAC', 'cuenta corriente' => 'PAC', 'cuenta vista' => 'PAC',
         'pat' => 'PAT', 'tarjeta' => 'PAT', 'transbank' => 'PAT', 'tbk' => 'PAT', 'tarjeta de credito' => 'PAT',
+        'transferencia' => 'TRF', 'transf' => 'TRF', 'trf' => 'TRF',
+        'donar online' => 'DO', 'donaronline' => 'DO', 'do' => 'DO',
+        'causaxcausa' => 'CXC', 'cxc' => 'CXC',
     ];
     private const ALIAS_ESTADO = [
         'activo' => 'activo', 'activa' => 'activo', 'vigente' => 'activo',
@@ -59,7 +62,7 @@ final class SocioValidator
         $medio = self::key($in['medio_pago'] ?? null);
         $d['medio_pago'] = self::ALIAS_MEDIO[$medio] ?? null;
         if ($d['medio_pago'] === null) {
-            $e['medio_pago'] = $medio === '' ? 'El medio de pago es obligatorio.' : 'Debe ser PAC (banco) o PAT (tarjeta).';
+            $e['medio_pago'] = $medio === '' ? 'El medio de pago es obligatorio.' : 'Debe ser PAC (banco), PAT (tarjeta), TRF (transferencia), DO o CXC.';
         }
 
         // Nombre o código ("037", "Santander") se guardan con el nombre oficial del catálogo.

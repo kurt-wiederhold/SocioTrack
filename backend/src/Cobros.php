@@ -42,6 +42,10 @@ final class Cobros
      */
     public static function elegibles(string $periodo, string $medio, ?array $categoria = null): array
     {
+        if (!in_array($medio, ['PAC', 'PAT'], true)) {
+            return []; // Los medios TRF, DO y CXC no generan nóminas.
+        }
+
         $sql = "SELECT s.id, s.rut, s.nombre, s.monto, s.banco,
                        (SELECT COUNT(*) FROM cobro_detalles d WHERE d.socio_id = s.id AND d.periodo = ?) AS intentos_previos
                 FROM socios s
@@ -74,7 +78,7 @@ final class Cobros
     public static function resumen(string $periodo): array
     {
         $out = [];
-        foreach (SocioValidator::MEDIOS_PAGO as $medio) {
+        foreach (['PAC', 'PAT'] as $medio) {
             $activos = Db::one(
                 "SELECT COUNT(*) AS n, COALESCE(SUM(monto), 0) AS monto FROM socios
                  WHERE estado = 'activo' AND medio_pago = ? AND fecha_alta <= ?",
@@ -175,6 +179,10 @@ final class Cobros
      */
     public static function generar(array $p, bool $simular, ?int $userId): array
     {
+        if (!in_array($p['medio_pago'], ['PAC', 'PAT'], true)) {
+            throw new HttpError(422, 'Solo se pueden generar nóminas para PAC o PAT.');
+        }
+
         $categoria = null;
         if ($p['categoria_id'] !== null) {
             $categoria = Categorias::find($p['categoria_id']) ?? throw new HttpError(422, 'La categoría no existe.');

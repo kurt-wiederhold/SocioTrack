@@ -89,18 +89,23 @@ export default function InformesPage() {
   const [cargando, setCargando] = useState(true)
   const [primer, setPrimer] = useState(null)
   const [descargando, setDescargando] = useState(false)
+  const [categoriaId, setCategoriaId] = useState('')
+  const [categorias, setCategorias] = useState([])
 
   const [desde, hasta] = rango === 'personal' ? personal : rangoPreset(rango, primer)
 
   useEffect(() => {
     let vigente = true
     setCargando(true)
-    api.informes.generar({ agrupacion, desde, hasta }).then(
+    api.informes.generar({ agrupacion, desde, hasta, categoria_id: categoriaId }).then(
       (r) => { if (vigente) { setData(r); setPrimer(r.primer_periodo); setError('') } },
       (e) => { if (vigente) setError(e.message) },
     ).finally(() => vigente && setCargando(false))
     return () => { vigente = false }
-  }, [agrupacion, desde, hasta])
+  }, [agrupacion, desde, hasta, categoriaId])
+  useEffect(() => {
+    api.categorias.list().then((r) => setCategorias(r.datos), () => {})
+  }, [])
 
   const t = data?.totales
   // Último comparativo visto, para incluirlo en el Excel. Callback estable: evita recargas en bucle.
@@ -162,6 +167,17 @@ export default function InformesPage() {
             <option value="personal">Personalizado…</option>
           </Select>
         </label>
+
+        <label className="block lg:w-56">
+          <span className="mb-1 block text-sm font-medium text-slate-700">Categoría</span>
+          <Select value={categoriaId} onChange={(e) => setCategoriaId(e.target.value)}>
+            <option value="">Todas las categorías</option>
+            {categorias.map((c) => (
+              <option key={c.id} value={c.id}>{c.nombre}</option>
+            ))}
+          </Select>
+        </label>
+
         {rango === 'personal' && (
           <div className="flex flex-wrap gap-3">
             <SelectorMes label="Desde" valor={personal[0]} primer={primer} onChange={(v) => setPersonal(([, h]) => [v, v > h ? v : h])} />

@@ -217,6 +217,9 @@ export default function ImportarSocios({ open, onClose, onDone }) {
                 <option value="">Ninguno (la columna es obligatoria)</option>
                 <option value="PAC">PAC · Cargo en cuenta bancaria</option>
                 <option value="PAT">PAT · Tarjeta (Transbank)</option>
+                <option value="TRF">TRF · Transferencia</option>
+                <option value="DO">DO · Donar Online</option>
+                <option value="CXC">CXC · Causaxcausa</option>
               </Select>
             </div>
             <label className="flex cursor-pointer gap-3 rounded-xl p-4 ring-1 ring-slate-200">

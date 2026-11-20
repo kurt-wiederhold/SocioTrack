@@ -7,6 +7,9 @@ export const ESTADOS = {
 export const MEDIOS = {
   PAC: { label: 'PAC', detalle: 'Cargo en cuenta bancaria', color: 'blue' },
   PAT: { label: 'PAT', detalle: 'Tarjeta (Transbank)', color: 'brand' },
+  TRF: { label: 'Transferencia', detalle: 'Transferencia bancaria', color: 'green' },
+  DO: { label: 'Donar Online', detalle: 'Donar Online', color: 'purple' },
+  CXC: { label: 'Causaxcausa', detalle: 'Causaxcausa', color: 'orange' },
 }
 
 export const PROVEEDOR_ESTADOS = {
